@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-base: #f8fafc;        /* slate-50 */
+    --color-bg-surface: #ffffff;     /* pure white */
+    --color-bg-card: #ffffff;
+    --color-bg-hover: #f1f5f9;      /* slate-100 */
+
+    --color-text-main: #0f172a;      /* slate-900 */
+    --color-text-muted: #475569;     /* slate-600 */
+    --color-text-subtle: #94a3b8;    /* slate-400 */
+
+    --color-border: #e2e8f0;         /* slate-200 */
+    --color-border-focus: #3b82f6;   /* blue-500 */
+
+    --color-accent: #2563eb;         /* blue-600 */
+    --color-accent-hover: #1d4ed8;   /* blue-700 */
+    --color-accent-subtle: #eff6ff;  /* blue-50 */
+    --color-accent-foreground: #ffffff;
+
+    --color-status-success: #16a34a; /* green-600 */
+    --color-status-warning: #ea580c; /* orange-600 */
+    --color-status-danger: #dc2626;  /* red-600 */
+    --color-status-info: #0284c7;    /* sky-600 */
+
+    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    --color-bg-base: #0b0f19;        /* deep dark slate */
+    --color-bg-surface: #111827;     /* gray-900 */
+    --color-bg-card: #162032;        /* elevated dark card */
+    --color-bg-hover: #1f293d;      /* interactive hover */
+
+    --color-text-main: #f8fafc;      /* slate-50 */
+    --color-text-muted: #94a3b8;     /* slate-400 */
+    --color-text-subtle: #64748b;    /* slate-500 */
+
+    --color-border: #243046;         /* refined border */
+    --color-border-focus: #60a5fa;   /* blue-400 */
+
+    --color-accent: #3b82f6;         /* vibrant blue-500 */
+    --color-accent-hover: #60a5fa;   /* blue-400 */
+    --color-accent-subtle: #1e293b;  /* blue slate */
+    --color-accent-foreground: #ffffff;
+
+    --color-status-success: #22c55e; /* green-500 */
+    --color-status-warning: #f97316; /* orange-500 */
+    --color-status-danger: #ef4444;  /* red-500 */
+    --color-status-info: #38bdf8;    /* sky-400 */
+
+    --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  body {
+    background-color: var(--color-bg-base);
+    color: var(--color-text-main);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+}

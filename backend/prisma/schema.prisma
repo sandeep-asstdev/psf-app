@@ -1,0 +1,618 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+// ---------------------------------------------------------
+// 1. Core Multi-Tenancy & Access Control
+// ---------------------------------------------------------
+
+model Tenant {
+  id                  String               @id @default(uuid())
+  name                String
+  slug                String               @unique
+  logoUrl             String?              @map("logo_url")
+  primaryColor        String?              @default("#2563EB") @map("primary_color")
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  brands              Brand[]
+  branches            Branch[]
+  users               User[]
+  roles               Role[]
+  loginLogs           LoginLog[]
+  customers           Customer[]
+  vehicles            Vehicle[]
+  jobCards            JobCard[]
+  followupQueues      FollowupQueue[]
+  calls               Call[]
+  surveyResponses     SurveyResponse[]
+  complaintCategories ComplaintCategory[]
+  complaints          Complaint[]
+  reconfirmations     Reconfirmation[]
+  reminders           Reminder[]
+  documents           Document[]
+  auditLogs           AuditLog[]
+  importBatches       ImportBatch[]
+  questionnaires      Questionnaire[]
+  settings            Setting[]
+
+  @@map("tenants")
+}
+
+model Brand {
+  id                  String               @id @default(uuid())
+  tenantId            String               @map("tenant_id")
+  name                String
+  code                String
+  logoUrl             String?              @map("logo_url")
+  primaryColor        String?              @map("primary_color")
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branches            Branch[]
+  vehicles            Vehicle[]
+  jobCards            JobCard[]
+  importBatches       ImportBatch[]
+  questionnaires      Questionnaire[]
+  complaintCategories ComplaintCategory[]
+  userScopes          UserScope[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("brands")
+}
+
+model Branch {
+  id         String      @id @default(uuid())
+  tenantId   String      @map("tenant_id")
+  brandId    String      @map("brand_id")
+  name       String
+  code       String
+  address    String?
+  city       String?
+  state      String?
+  pincode    String?
+  phone      String?
+  email      String?
+  isActive   Boolean     @default(true) @map("is_active")
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand      Brand       @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  jobCards   JobCard[]
+  complaints Complaint[]
+  userScopes UserScope[]
+  importBatches ImportBatch[]
+
+  @@unique([tenantId, brandId, code])
+  @@index([tenantId, isActive])
+  @@map("branches")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  tenantId    String?  @map("tenant_id")
+  name        String
+  description String?
+  permissions Json     @default("[]")
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users       User[]
+
+  @@unique([tenantId, name])
+  @@map("roles")
+}
+
+model User {
+  id             String      @id @default(uuid())
+  tenantId       String      @map("tenant_id")
+  roleId         String      @map("role_id")
+  email          String
+  hashedPassword String      @map("hashed_password")
+  fullName       String      @map("full_name")
+  phone          String?
+  employeeId     String?     @map("employee_id")
+  isActive       Boolean     @default(true) @map("is_active")
+  avatarUrl      String?     @map("avatar_url")
+  lastLoginAt    DateTime?   @map("last_login_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role           Role        @relation(fields: [roleId], references: [id])
+  scopes         UserScope[]
+  loginLogs      LoginLog[]
+  assignedQueues FollowupQueue[] @relation("AssignedCRE")
+  calls          Call[]          @relation("Caller")
+  complaintsAssigned Complaint[] @relation("ComplaintAssigned")
+  complaintsResolved Complaint[] @relation("ComplaintResolved")
+  complaintsClosed   Complaint[] @relation("ComplaintClosed")
+  complaintEvents    ComplaintEvent[]
+  reconfirmations    Reconfirmation[]
+  reminders          Reminder[]
+  documentsUploaded  Document[]
+  auditLogs          AuditLog[]
+  importBatches      ImportBatch[]
+  jobCardsUploaded   JobCard[]   @relation("JobCardUploader")
+  jobCardsAdvised    JobCard[]   @relation("JobCardAdvisor")
+
+  @@unique([tenantId, email])
+  @@index([tenantId, roleId])
+  @@index([tenantId, isActive])
+  @@map("users")
+}
+
+model UserScope {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  brandId   String?  @map("brand_id")
+  branchId  String?  @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     Brand?   @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  branch    Branch?  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, brandId, branchId])
+  @@map("user_scopes")
+}
+
+model LoginLog {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  userId          String    @map("user_id")
+  loginAt         DateTime  @default(now()) @map("login_at")
+  logoutAt        DateTime? @map("logout_at")
+  durationSeconds Int?      @map("duration_seconds")
+  ipAddress       String?   @map("ip_address")
+  userAgent       String?   @map("user_agent")
+  deviceInfo      String?   @map("device_info")
+  status          String    @default("SUCCESS")
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, loginAt])
+  @@index([tenantId, loginAt])
+  @@map("login_logs")
+}
+
+// ---------------------------------------------------------
+// 2. Customer & Vehicle Master
+// ---------------------------------------------------------
+
+model Customer {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  name          String
+  phone         String
+  altPhone      String?   @map("alt_phone")
+  email         String?
+  address       String?
+  city          String?
+  doNotDisturb  Boolean   @default(false) @map("do_not_disturb")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vehicles      Vehicle[]
+  jobCards      JobCard[]
+
+  @@index([tenantId, phone])
+  @@index([tenantId, name])
+  @@map("customers")
+}
+
+model Vehicle {
+  id           String    @id @default(uuid())
+  tenantId     String    @map("tenant_id")
+  brandId      String    @map("brand_id")
+  customerId   String    @map("customer_id")
+  regNo        String    @map("reg_no")
+  vin          String?
+  model        String
+  variant      String?
+  fuelType     String?   @map("fuel_type")
+  deliveryDate DateTime? @map("delivery_date")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand        Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  jobCards     JobCard[]
+
+  @@index([tenantId, regNo])
+  @@index([tenantId, vin])
+  @@map("vehicles")
+}
+
+// ---------------------------------------------------------
+// 3. Job Cards & DMS Ingestion
+// ---------------------------------------------------------
+
+model ImportBatch {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  uploadedBy    String    @map("uploaded_by")
+  brandId       String    @map("brand_id")
+  branchId      String?   @map("branch_id")
+  fileName      String    @map("file_name")
+  fileUrl       String?   @map("file_url")
+  totalRows     Int       @default(0) @map("total_rows")
+  processedRows Int       @default(0) @map("processed_rows")
+  successRows   Int       @default(0) @map("success_rows")
+  errorRows     Int       @default(0) @map("error_rows")
+  errorLog      Json?     @map("error_log")
+  status        String    @default("PENDING")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader      User      @relation(fields: [uploadedBy], references: [id])
+  brand         Brand     @relation(fields: [brandId], references: [id])
+  branch        Branch?   @relation(fields: [branchId], references: [id])
+  jobCards      JobCard[]
+
+  @@index([tenantId, status, createdAt])
+  @@map("import_batches")
+}
+
+model JobCard {
+  id                   String          @id @default(uuid())
+  tenantId             String          @map("tenant_id")
+  brandId              String          @map("brand_id")
+  branchId             String          @map("branch_id")
+  customerId           String          @map("customer_id")
+  vehicleId            String          @map("vehicle_id")
+  importBatchId        String?         @map("import_batch_id")
+  jobCardNo            String          @map("job_card_no")
+  jobCardDate          DateTime        @map("job_card_date")
+  serviceAdvisorName   String?         @map("service_advisor_name")
+  serviceAdvisorId     String?         @map("service_advisor_id")
+  technicianName       String?         @map("technician_name")
+  serviceType          String?         @map("service_type")
+  totalAmount          Decimal         @default(0.00) @map("total_amount") @db.Decimal(12, 2)
+  odometerReading      Int?            @map("odometer_reading")
+  promisedDeliveryTime DateTime?       @map("promised_delivery_time")
+  actualDeliveryTime   DateTime?       @map("actual_delivery_time")
+  uploadedById         String?         @map("uploaded_by_id")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
+
+  tenant               Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand                Brand           @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  branch               Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customer             Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle              Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  importBatch          ImportBatch?    @relation(fields: [importBatchId], references: [id])
+  uploadedBy           User?           @relation("JobCardUploader", fields: [uploadedById], references: [id])
+  serviceAdvisor       User?           @relation("JobCardAdvisor", fields: [serviceAdvisorId], references: [id])
+
+  queues               FollowupQueue[]
+  calls                Call[]
+  complaints           Complaint[]
+  surveyResponses      SurveyResponse[]
+
+  @@unique([tenantId, branchId, jobCardNo])
+  @@index([tenantId, branchId, jobCardDate])
+  @@index([tenantId, serviceAdvisorId])
+  @@index([tenantId, customerId])
+  @@map("job_cards")
+}
+
+// ---------------------------------------------------------
+// 4. Follow-Up Queues & Calling Console
+// ---------------------------------------------------------
+
+model FollowupQueue {
+  id             String      @id @default(uuid())
+  tenantId       String      @map("tenant_id")
+  jobCardId      String      @map("job_card_id")
+  queueType      String      @map("queue_type") // PSF | TNPS | HAPPINESS | RECONFIRMATION | ADVISOR
+  status         String      @default("PENDING") // PENDING | IN_PROGRESS | CONTACTED | NOT_CONTACTED | CALLBACK_REQUESTED | CLOSED_MAX_ATTEMPTS
+  assignedToId   String?     @map("assigned_to_id")
+  dueAt          DateTime    @map("due_at")
+  attempts       Int         @default(0)
+  contactedCount Int         @default(0) @map("contacted_count")
+  lastAttemptAt  DateTime?   @map("last_attempt_at")
+  nextFollowupAt DateTime?   @map("next_followup_at")
+  completedAt    DateTime?   @map("completed_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jobCard        JobCard     @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  assignedTo     User?       @relation("AssignedCRE", fields: [assignedToId], references: [id])
+  calls          Call[]
+  reminders      Reminder[]
+
+  @@index([tenantId, queueType, status, dueAt])
+  @@index([tenantId, assignedToId, status, dueAt])
+  @@index([jobCardId])
+  @@map("followup_queues")
+}
+
+model Call {
+  id              String          @id @default(uuid())
+  tenantId        String          @map("tenant_id")
+  followupQueueId String          @map("followup_queue_id")
+  jobCardId       String          @map("job_card_id")
+  calledById      String          @map("called_by_id")
+  calledAt        DateTime        @default(now()) @map("called_at")
+  durationSeconds Int             @default(0) @map("duration_seconds")
+  phoneDialed     String          @map("phone_dialed")
+  callStatus      String          @map("call_status")
+  caseStatus      String          @map("case_status")
+  voc             String?         @db.Text
+  altContactUsed  Boolean         @default(false) @map("alt_contact_used")
+  recordingUrl    String?         @map("recording_url")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  followupQueue   FollowupQueue   @relation(fields: [followupQueueId], references: [id], onDelete: Cascade)
+  jobCard         JobCard         @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  calledBy        User            @relation("Caller", fields: [calledById], references: [id])
+  surveyResponses SurveyResponse[]
+  complaints      Complaint[]
+
+  @@index([tenantId, calledAt])
+  @@index([tenantId, calledById, calledAt])
+  @@index([followupQueueId])
+  @@map("calls")
+}
+
+model SurveyResponse {
+  id              String         @id @default(uuid())
+  tenantId        String         @map("tenant_id")
+  callId          String         @map("call_id")
+  jobCardId       String         @map("job_card_id")
+  questionnaireId String         @map("questionnaire_id")
+  answers         Json           // Key-value response map
+  csatScore       Decimal?       @map("csat_score") @db.Decimal(5, 2)
+  npsScore        Int?           @map("nps_score")
+  npsCategory     String?        @map("nps_category") // PROMOTER | PASSIVE | DETRACTOR
+  createdAt       DateTime       @default(now()) @map("created_at")
+
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  call            Call           @relation(fields: [callId], references: [id], onDelete: Cascade)
+  jobCard         JobCard        @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  questionnaire   Questionnaire  @relation(fields: [questionnaireId], references: [id])
+
+  @@index([tenantId, npsCategory])
+  @@index([callId])
+  @@map("survey_responses")
+}
+
+// ---------------------------------------------------------
+// 5. Dynamic Questionnaire Engine
+// ---------------------------------------------------------
+
+model Questionnaire {
+  id              String           @id @default(uuid())
+  tenantId        String           @map("tenant_id")
+  brandId         String           @map("brand_id")
+  type            String           // PSF | TNPS | HAPPINESS | RECONFIRMATION
+  title           String
+  version         Int              @default(1)
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand           Brand            @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  questions       Question[]
+  surveyResponses SurveyResponse[]
+
+  @@unique([tenantId, brandId, type, version])
+  @@map("questionnaires")
+}
+
+model Question {
+  id              String        @id @default(uuid())
+  questionnaireId String        @map("questionnaire_id")
+  key             String
+  label           String        @db.Text
+  type            String        // rating_5 | nps_10 | yes_no | yes_no_na | single_select | multi_select | text | number
+  section         String        @default("General")
+  options         Json?         // Select options or scale labels
+  showIf          Json?         @map("show_if") // Conditional display rule
+  weight          Decimal       @default(1.0) @db.Decimal(4, 2)
+  displayOrder    Int           @default(0) @map("display_order")
+  isRequired      Boolean       @default(false) @map("is_required")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  questionnaire   Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+
+  @@index([questionnaireId, displayOrder])
+  @@map("questions")
+}
+
+// ---------------------------------------------------------
+// 6. Complaint Management Lifecycle
+// ---------------------------------------------------------
+
+model ComplaintCategory {
+  id             String      @id @default(uuid())
+  tenantId       String      @map("tenant_id")
+  brandId        String?     @map("brand_id")
+  name           String
+  defaultSlaHours Int        @default(24) @map("default_sla_hours")
+  severityLevel  String      @default("MEDIUM") @map("severity_level")
+  isActive       Boolean     @default(true) @map("is_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  brand          Brand?      @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  complaints     Complaint[]
+
+  @@unique([tenantId, name])
+  @@map("complaint_categories")
+}
+
+model Complaint {
+  id                String           @id @default(uuid())
+  tenantId          String           @map("tenant_id")
+  branchId          String           @map("branch_id")
+  jobCardId         String           @map("job_card_id")
+  callId            String?          @map("call_id")
+  categoryId        String           @map("category_id")
+  complaintNo       String           @unique @map("complaint_no")
+  severity          String           @default("MEDIUM")
+  status            String           @default("OPEN") // OPEN | ASSIGNED | IN_PROGRESS | RESOLVED | RECONFIRMATION_PENDING | CLOSED | REOPENED
+  description       String           @db.Text
+  assignedToId      String?          @map("assigned_to_id")
+  slaDueAt          DateTime         @map("sla_due_at")
+  isSlaBreached     Boolean          @default(false) @map("is_sla_breached")
+  resolutionRemarks String?          @map("resolution_remarks") @db.Text
+  resolvedById      String?          @map("resolved_by_id")
+  resolvedAt        DateTime?        @map("resolved_at")
+  closedById        String?          @map("closed_by_id")
+  closedAt          DateTime?        @map("closed_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch            Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  jobCard           JobCard          @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  call              Call?            @relation(fields: [callId], references: [id])
+  category          ComplaintCategory @relation(fields: [categoryId], references: [id])
+  assignedTo        User?            @relation("ComplaintAssigned", fields: [assignedToId], references: [id])
+  resolvedBy        User?            @relation("ComplaintResolved", fields: [resolvedById], references: [id])
+  closedBy          User?            @relation("ComplaintClosed", fields: [closedById], references: [id])
+
+  events            ComplaintEvent[]
+  reconfirmations   Reconfirmation[]
+
+  @@index([tenantId, branchId, status, slaDueAt])
+  @@index([tenantId, assignedToId, status])
+  @@map("complaints")
+}
+
+model ComplaintEvent {
+  id          String    @id @default(uuid())
+  complaintId String    @map("complaint_id")
+  performedById String  @map("performed_by_id")
+  eventType   String    @map("event_type") // CREATED | ASSIGNED | STATUS_CHANGE | COMMENT_ADDED | SLA_ESCALATED | RESOLVED | REOPENED | CLOSED
+  fromStatus  String?   @map("from_status")
+  toStatus    String?   @map("to_status")
+  remarks     String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  performedBy User      @relation(fields: [performedById], references: [id])
+
+  @@index([complaintId, createdAt])
+  @@map("complaint_events")
+}
+
+model Reconfirmation {
+  id              String    @id @default(uuid())
+  tenantId        String    @map("tenant_id")
+  complaintId     String    @map("complaint_id")
+  conductedById   String    @map("conducted_by_id")
+  reconfirmationDate DateTime @default(now()) @map("reconfirmation_date")
+  status          String    // SATISFIED_CLOSED | UNSATISFIED_REOPENED
+  callStatus      String    @map("call_status")
+  customerFeedback String?  @map("customer_feedback") @db.Text
+  closureVerified Boolean   @default(false) @map("closure_verified")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  complaint       Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  conductedBy     User      @relation(fields: [conductedById], references: [id])
+
+  @@index([tenantId, complaintId])
+  @@map("reconfirmations")
+}
+
+// ---------------------------------------------------------
+// 7. Operations, Settings & Audit Logs
+// ---------------------------------------------------------
+
+model Reminder {
+  id              String        @id @default(uuid())
+  tenantId        String        @map("tenant_id")
+  followupQueueId String        @map("followup_queue_id")
+  assignedToId    String        @map("assigned_to_id")
+  remindAt        DateTime      @map("remind_at")
+  note            String?       @db.Text
+  isAcknowledged  Boolean       @default(false) @map("is_acknowledged")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  followupQueue   FollowupQueue @relation(fields: [followupQueueId], references: [id], onDelete: Cascade)
+  assignedTo      User          @relation(fields: [assignedToId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assignedToId, isAcknowledged, remindAt])
+  @@map("reminders")
+}
+
+model Document {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  entityType    String   @map("entity_type") // COMPLAINT | JOB_CARD | CALL | RECONFIRMATION
+  entityId      String   @map("entity_id")
+  fileName      String   @map("file_name")
+  fileUrl       String   @map("file_url")
+  mimeType      String?  @map("mime_type")
+  fileSizeBytes BigInt?  @map("file_size_bytes")
+  uploadedById  String?  @map("uploaded_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploadedBy    User?    @relation(fields: [uploadedById], references: [id])
+
+  @@index([tenantId, entityType, entityId])
+  @@map("documents")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String   @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  oldValues  Json?    @map("old_values")
+  newValues  Json?    @map("new_values")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  configKey   String   @map("config_key")
+  configValue Json     @map("config_value")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, configKey])
+  @@map("settings")
+}

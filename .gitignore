@@ -1,0 +1,58 @@
+# Node & Frontend
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+
+# Python & Backend
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Prisma
+generated/
+prisma/client/
+
+# Environment and secrets
+.env
+!.env.example
+*.pem
+*.key
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker & local volumes
+pgdata/
+redisdata/
+miniodata/
