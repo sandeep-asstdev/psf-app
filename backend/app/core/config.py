@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     SECRET_KEY: str = "psf-super-secret-jwt-and-crypto-signing-key-change-in-production-min32chars"
+    # 32-byte url-safe base64 key for Fernet / AES-256 PII encryption
+    ENCRYPTION_KEY: str = "tU43o8_W12nEa9Q_bJv8hWvQ6k5Fz4pL3y8K1_bE7wQ="
     API_V1_STR: str = "/api/v1"
 
     # CORS
@@ -28,7 +30,14 @@ class Settings(BaseSettings):
         return []
 
     # Database
-    DATABASE_URL: str = "postgresql://psf_admin:psf_secure_password_dev@localhost:5432/psf_db?schema=public"
+    DATABASE_URL: str = "postgresql+asyncpg://psf_admin:psf_secure_password_dev@localhost:5432/psf_db"
+    SYNC_DATABASE_URL: str = "postgresql://psf_admin:psf_secure_password_dev@localhost:5432/psf_db"
+
+    @field_validator("DATABASE_URL", mode="before")
+    def assemble_async_db_url(cls, v: str) -> str:
+        if v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

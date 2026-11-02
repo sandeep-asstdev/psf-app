@@ -3,9 +3,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.core.database import connect_db, disconnect_db
+from app.core.database import check_db_health, engine, Base
 from app.core.redis import get_redis, close_redis
+from app.core.storage import init_storage_buckets
 from app.api.v1.api import api_router
+import app.models  # ensure models are registered
 
 # Configure structured logging
 logging.basicConfig(
@@ -19,7 +21,16 @@ logger = logging.getLogger("psf.api")
 async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION} [{settings.APP_ENV}]")
-    await connect_db()
+
+    # Auto-create tables if running in container/development mode
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("SQLAlchemy metadata verified/created successfully.")
+    except Exception as e:
+        logger.warning(f"Could not initialize tables automatically (migrations will handle this): {e}")
+
+    # Redis check
     try:
         r = await get_redis()
         await r.ping()
@@ -27,11 +38,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not connect to Redis at startup: {e}")
 
+    # Storage buckets check
+    try:
+        await init_storage_buckets()
+    except Exception as e:
+        logger.warning(f"Storage buckets init skipped: {e}")
+
     yield
 
     # Shutdown
     logger.info("Shutting down PSF Application...")
-    await disconnect_db()
+    await engine.dispose()
     await close_redis()
 
 

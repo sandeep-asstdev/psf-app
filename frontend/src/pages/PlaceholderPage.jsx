@@ -28,3 +28,4 @@ export default function PlaceholderPage({ title, description, phase }) {
     </div>
   );
 }
+

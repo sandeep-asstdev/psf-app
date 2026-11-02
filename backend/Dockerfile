@@ -10,16 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq-dev \
-    nodejs \
-    npm \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
-
-COPY prisma /app/prisma
-RUN prisma generate --schema=/app/prisma/schema.prisma || true
 
 COPY . /app
 

@@ -30,3 +30,4 @@ async def close_redis() -> None:
             logger.error(f"Error closing Redis: {e}")
         finally:
             redis_client = None
+

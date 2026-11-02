@@ -260,3 +260,4 @@ flowchart TD
 3. **PII Protection**: Customer mobile numbers and email addresses are masked in UI for non-privileged roles and encrypted at rest using AES-GCM-256 where compliance mandates.
 4. **Audit Trail**: Every critical action (complaint resolution, user role change, record export) logs an entry to `audit_logs` capturing `user_id`, `action`, `entity`, `ip`, and before/after JSON diffs.
 5. **Rate Limiting**: Redis token-bucket rate limiters guard API endpoints against brute force and denial of service.
+

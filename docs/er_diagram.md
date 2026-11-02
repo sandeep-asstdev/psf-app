@@ -429,3 +429,4 @@ For enterprise dealership networks processing 500,000+ job cards per year:
 - `job_cards(tenant_id, branch_id, job_card_date DESC)`: Accelerates DMS imports and daily job card views.
 - `complaints(tenant_id, branch_id, status, sla_due_at)`: Eliminates table scans for SLA monitoring cron jobs.
 - `survey_responses USING GIN(answers)`: Enables arbitrary JSON question querying without table schema migrations.
+
