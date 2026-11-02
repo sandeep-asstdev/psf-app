@@ -1,9 +1,11 @@
 import React from 'react';
-import { Sun, Moon, Search, Bell, Menu, Shield } from 'lucide-react';
+import { Sun, Moon, Search, Bell, Menu, LogOut } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
+import { useAuthStore } from '../../store/authStore';
 
 export default function Header({ onToggleSidebar }) {
   const { resolvedTheme, toggleTheme } = useThemeStore();
+  const { user, logout } = useAuthStore();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-background-surface px-4 shadow-subtle transition-colors lg:px-6">
@@ -21,7 +23,9 @@ export default function Header({ onToggleSidebar }) {
             PSF
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-sm font-semibold tracking-tight text-foreground">Post Service Follow-up</h1>
+            <h1 className="text-sm font-semibold tracking-tight text-foreground">
+              {user?.tenant_name || 'PSF Platform'}
+            </h1>
             <p className="text-xs text-foreground-subtle">Dealership CRM & Survey Suite</p>
           </div>
         </div>
@@ -66,15 +70,23 @@ export default function Header({ onToggleSidebar }) {
         {/* User Mini Profile */}
         <div className="flex items-center space-x-3 border-l border-border pl-3 sm:pl-4">
           <div className="h-8 w-8 rounded-full bg-accent-subtle flex items-center justify-center text-accent font-semibold text-xs border border-accent/20">
-            CRE
+            {user?.role_name?.slice(0, 3) || 'CRE'}
           </div>
           <div className="hidden lg:block text-left">
-            <div className="text-xs font-medium text-foreground">Priya Sharma</div>
-            <div className="text-[10px] text-foreground-subtle">Central Workshop · Hyundai</div>
+            <div className="text-xs font-medium text-foreground">{user?.full_name || 'Priya Sharma'}</div>
+            <div className="text-[10px] text-foreground-subtle">
+              {user?.role_name || 'Caller'} · {user?.scopes?.[0]?.brand_name || 'Apex Dealership'}
+            </div>
           </div>
+          <button
+            onClick={logout}
+            title="Log out and end shift"
+            className="rounded-lg p-1.5 text-status-danger hover:bg-status-danger/10 transition-colors ml-1"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </header>
   );
 }
-

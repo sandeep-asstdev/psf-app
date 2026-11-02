@@ -51,6 +51,7 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     role: Mapped["Role"] = relationship(back_populates="users")
+    tenant: Mapped["Tenant"] = relationship()
     scopes: Mapped[List["UserScope"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     login_logs: Mapped[List["LoginLog"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

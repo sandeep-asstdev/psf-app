@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home,
@@ -11,8 +11,11 @@ import {
   Users,
   Settings,
   LogOut,
+  Clock,
   X,
 } from 'lucide-react';
+import { useAuthStore } from '../../store/authStore';
+import { formatDistanceToNow } from 'date-fns';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
@@ -20,6 +23,7 @@ const NAV_ITEMS = [
   { to: '/happiness', label: 'Happiness Calling', icon: HeartHandshake, badge: '6' },
   { to: '/complaints', label: 'Complaints', icon: AlertOctagon, badge: '3' },
   { to: '/advisor', label: 'Advisor Followup', icon: Wrench },
+  { to: '/attendance', label: 'Shift Attendance', icon: Clock },
   { to: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
   { to: '/import', label: 'Data Import', icon: UploadCloud },
   { to: '/users', label: 'User Management', icon: Users },
@@ -27,6 +31,29 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { user, logout } = useAuthStore();
+  const [elapsedTime, setElapsedTime] = useState('');
+
+  useEffect(() => {
+    if (!user?.active_shift_login) {
+      setElapsedTime('Shift Not Started');
+      return;
+    }
+
+    const updateTimer = () => {
+      try {
+        const distance = formatDistanceToNow(new Date(user.active_shift_login), { addSuffix: false });
+        setElapsedTime(distance);
+      } catch (e) {
+        setElapsedTime('Active');
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 60000);
+    return () => clearInterval(interval);
+  }, [user?.active_shift_login]);
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -86,18 +113,25 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Bottom Section: Attendance Log / Logout */}
-        <div className="border-t border-border p-3">
-          <div className="mb-2 rounded-lg bg-background-base p-2 text-xs">
-            <div className="text-foreground-subtle">Session Started:</div>
-            <div className="font-medium text-foreground">Today at 09:30 AM</div>
+        <div className="border-t border-border p-3 space-y-2">
+          <div className="rounded-lg bg-background-base p-2 text-xs">
+            <div className="flex items-center justify-between text-foreground-subtle mb-0.5">
+              <span>Shift Active:</span>
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <div className="font-semibold text-foreground">
+              {elapsedTime ? `${elapsedTime} active` : 'Active'}
+            </div>
           </div>
-          <button className="flex w-full items-center space-x-3 rounded-lg px-3 py-2 text-sm font-medium text-status-danger hover:bg-status-danger/10 transition-colors">
+          <button
+            onClick={logout}
+            className="flex w-full items-center space-x-2 rounded-lg px-3 py-2 text-xs font-semibold text-status-danger hover:bg-status-danger/10 transition-colors"
+          >
             <LogOut className="h-4 w-4" />
-            <span>End Shift / Log Out</span>
+            <span>End Shift & Log Out</span>
           </button>
         </div>
       </aside>
     </>
   );
 }
-
