@@ -72,11 +72,11 @@ class FollowupQueue(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     job_card_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("job_cards.id", ondelete="CASCADE"), nullable=False, index=True)
+    program_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("follow_up_programs.id", ondelete="SET NULL"), nullable=True, index=True)
     queue_type: Mapped[str] = mapped_column(String(40), nullable=False) # PSF | TNPS | HAPPINESS | RECONFIRMATION | ADVISOR
     status: Mapped[str] = mapped_column(String(40), default="PENDING") # PENDING | IN_PROGRESS | CONTACTED | NOT_CONTACTED | CALLBACK_REQUESTED | CLOSED_MAX_ATTEMPTS
     assigned_to_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    scheduled_tnps_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     contacted_count: Mapped[int] = mapped_column(Integer, default=0)
     last_attempt_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

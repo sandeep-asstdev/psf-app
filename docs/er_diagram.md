@@ -87,6 +87,8 @@ Automobile OEM brands managed by the dealer group.
 - `code` (VARCHAR 30, NOT NULL): Short code (e.g., "HYUN", "MG", "ATHER").
 - `logo_url` (VARCHAR 500): S3 URL for brand logo badge.
 - `primary_color` (VARCHAR 20): Brand theme hex code.
+- `enable_tnps` (BOOLEAN, DEFAULT false): Whether brand uses brand-scoped TNPS follow-up program (e.g. Ather Energy).
+- `tnps_label` (VARCHAR 50, DEFAULT 'TNPS'): Terminology override label for follow-up program.
 - `is_active` (BOOLEAN, DEFAULT true)
 - `created_at` / `updated_at`
 - *Indexes*: `(tenant_id, code)` UNIQUE, `(tenant_id, is_active)`.
@@ -365,6 +367,7 @@ Primary transactional record representing a completed workshop service invoice.
 - `odometer_reading` (INTEGER)
 - `promised_delivery_time` (TIMESTAMPTZ)
 - `actual_delivery_time` (TIMESTAMPTZ)
+- `legacy_tnps_date` (DATE, NULLABLE): Preserved raw legacy DMS audit date (29 Hyundai rows); no scheduling behaviour.
 - `uploaded_by` (UUIDv7, FK -> users.id)
 - `created_at` / `updated_at`
 - *Indexes*: 

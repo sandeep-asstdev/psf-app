@@ -1,22 +1,13 @@
 import pytest
-import asyncio
-from sqlalchemy import text
-from app.core.database import AsyncSessionLocal
+import pytest_asyncio
 from scripts.purge_test_data import purge
+from app.core.database import engine
 
-@pytest.fixture(scope="session", autouse=True)
-def cleanup_after_test_suite():
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_after_test_suite():
     yield
-    # Run purge after all tests complete
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(purge())
-        else:
-            loop.run_until_complete(purge())
+        await purge()
+        await engine.dispose()
     except Exception as e:
-        # Fallback to new event loop
-        new_loop = asyncio.new_event_loop()
-        new_loop.run_until_complete(purge())
-        new_loop.close()
-
+        print(f"Cleanup warning: {e}")

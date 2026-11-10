@@ -45,6 +45,7 @@ from app.models.additional import (
     ImportMappingTemplate,
     ConfigChangeHistory,
 )
+from app.models.config import ConfigVersion, FollowUpProgram
 
 __all__ = [
     "Base",

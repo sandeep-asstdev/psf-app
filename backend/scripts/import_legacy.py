@@ -38,18 +38,17 @@ from app.models.customer import Customer, Vehicle
 from app.models.service import JobCard, ImportBatch
 from app.models.followup import FollowupQueue, CallAttempt, Call, CallStatus, CaseStatus, SurveyResponse
 from app.models.complaint import Complaint, ComplaintCategory, ComplaintEvent
+from app.models.additional import Document
 from app.models.questionnaire import Questionnaire, Question
 from app.services.rating_service import derive_case_status_memory
 
 KOLKATA_TZ = ZoneInfo("Asia/Kolkata")
 
-# Columns to explicitly drop
+# Columns to explicitly drop (unmapped/redundant)
 DROPPED_COLUMNS = [
     "Brand Logo",
     "Update Changes",
     "Closure Doc",
-    "Ather Docs",
-    "Document (TNPS)",
     "8",
     "9",
 ]
@@ -392,6 +391,9 @@ class LegacyImporter:
                             except ValueError:
                                 srv_amount = 0.0
 
+                            # Check if brand is Ather Energy (or has TNPS enabled)
+                            is_ather = brand and (brand.code.upper() in ["ATHER", "ATHER_ENERGY"] or "ATHER" in brand.name.upper() or getattr(brand, "enable_tnps", False))
+
                             # Create JobCard
                             job_card = JobCard(
                                 tenant_id=tenant.id,
@@ -406,13 +408,35 @@ class LegacyImporter:
                                 technician_name=tech_name if tech_name else None,
                                 service_type=srv_type if srv_type else None,
                                 total_amount=srv_amount,
+                                legacy_tnps_date=tnps_dt,
                             )
                             db.add(job_card)
                             await db.flush()
                             self.report["job_cards_created"] += 1
 
-                            # Resolve CRE User
-                            cre_name = (row.get("Followed By") or row.get("Name of CRE") or "Priya Sharma").strip()
+                            # If Ather document present, store in documents table
+                            ather_doc = (row.get("Ather Docs") or row.get("Document (TNPS)") or "").strip()
+                            if ather_doc and not self.dry_run:
+                                db.add(Document(
+                                    tenant_id=tenant.id,
+                                    entity_type="JOB_CARD",
+                                    entity_id=job_card.id,
+                                    file_name=ather_doc.split("/")[-1].split("\\")[-1] or "ather_document.pdf",
+                                    file_url=ather_doc,
+                                    mime_type="application/pdf" if ather_doc.lower().endswith(".pdf") else "image/jpeg",
+                                ))
+
+                            # Resolve CRE User (for Ather rows, prefer TNPS Followed By)
+                            if is_ather:
+                                cre_name = (row.get("TNPS Followed By") or row.get("Followed By") or row.get("Name of CRE") or "Priya Sharma").strip()
+                                call_status_raw = (row.get("TNPS Call Status") or row.get("Call Status") or "Connected").strip()
+                                voc_raw = (row.get("TNPS VOC") or row.get("VOC") or "").strip()
+                                followup_dt = parse_datetime(row.get("TNPS Followed Timestamp")) or followup_dt
+                            else:
+                                cre_name = (row.get("Followed By") or row.get("Name of CRE") or "Priya Sharma").strip()
+                                call_status_raw = (row.get("Call Status") or "Connected").strip()
+                                voc_raw = (row.get("VOC") or "").strip()
+
                             cre_user = await get_or_create_user(cre_name, cre_role)
 
                             # Parse Counters & Statuses
@@ -427,9 +451,7 @@ class LegacyImporter:
                             except ValueError:
                                 total_contacted = 0
 
-                            call_status_raw = (row.get("Call Status") or "Connected").strip()
                             case_status_raw = (row.get("Case Status") or "Delight").strip()
-                            voc_raw = (row.get("VOC") or "").strip()
 
                             # Determine queue status
                             if case_status_raw == "No Response" or total_contacted == 0:
@@ -437,15 +459,14 @@ class LegacyImporter:
                             else:
                                 queue_status = "CONTACTED"
 
-                            # Create FollowupQueue
+                            # Create FollowupQueue (TNPS for Ather, PSF for others; no scheduled_tnps_date)
                             queue = FollowupQueue(
                                 tenant_id=tenant.id,
                                 job_card_id=job_card.id,
-                                queue_type="PSF",
+                                queue_type="TNPS" if is_ather else "PSF",
                                 status=queue_status,
                                 assigned_to_id=cre_user.id if cre_user else None,
                                 due_at=due_datetime,
-                                scheduled_tnps_date=tnps_dt,
                                 attempts=total_attempted,
                                 contacted_count=total_contacted,
                                 last_attempt_at=followup_dt,
@@ -501,24 +522,46 @@ class LegacyImporter:
                             # Survey Responses (JSONB by question key)
                             survey_answers = {}
                             raw_rating_val = None
-                            for col_name, q_key in HYUNDAI_QUESTION_MAP.items():
-                                if col_name in row and row[col_name] is not None:
-                                    norm_val = normalize_answer(row[col_name])
-                                    if norm_val is not None:
-                                        survey_answers[q_key] = norm_val
-                                        if isinstance(norm_val, int) and raw_rating_val is None:
-                                            raw_rating_val = norm_val
+                            if is_ather:
+                                ather_qn_stmt = select(Questionnaire).where(
+                                    Questionnaire.tenant_id == tenant.id,
+                                    Questionnaire.brand_id == brand.id,
+                                    Questionnaire.type == "TNPS",
+                                    Questionnaire.is_active == True,
+                                )
+                                ather_qn = (await db.execute(ather_qn_stmt)).scalars().first()
+                                jobs_ans = row.get("Where all the jobs requested by you done up to your satisfaction?")
+                                if jobs_ans:
+                                    survey_answers["ather_jobs_satisfaction"] = normalize_answer(jobs_ans)
+                                tnps_r = row.get("TNPS Ratings")
+                                if tnps_r:
+                                    try:
+                                        r_val = int(tnps_r)
+                                        survey_answers["ather_tnps_rating"] = r_val
+                                        raw_rating_val = r_val
+                                    except Exception:
+                                        pass
+                                target_qn = ather_qn or qn
+                            else:
+                                for col_name, q_key in HYUNDAI_QUESTION_MAP.items():
+                                    if col_name in row and row[col_name] is not None:
+                                        norm_val = normalize_answer(row[col_name])
+                                        if norm_val is not None:
+                                            survey_answers[q_key] = norm_val
+                                            if isinstance(norm_val, int) and raw_rating_val is None:
+                                                raw_rating_val = norm_val
+                                target_qn = qn
 
                             # Determine channel: WhatsApp or Phone
                             comp_cat_str = (row.get("Complaint Categories") or "").strip()
                             channel = "WHATSAPP" if ("WATSAPP" in comp_cat_str.upper() or "whatsapp" in voc_raw.lower()) else "PHONE"
 
-                            if survey_answers and qn:
+                            if survey_answers and target_qn:
                                 sr = SurveyResponse(
                                     tenant_id=tenant.id,
                                     call_id=call.id,
                                     job_card_id=job_card.id,
-                                    questionnaire_id=qn.id,
+                                    questionnaire_id=target_qn.id,
                                     answers=survey_answers,
                                     channel=channel,
                                     raw_rating=raw_rating_val,

@@ -35,6 +35,7 @@ class PsfDashboardStats(BaseModel):
     closed_complaints_by_branch: List[Dict[str, Any]] = []
     by_advisor: List[Dict[str, Any]] = []
     by_assigned_cre: List[Dict[str, Any]] = []
+    tnps_calls_by_branch: List[Dict[str, Any]] = []
     unassigned_count: int = 0
 
 

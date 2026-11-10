@@ -110,6 +110,11 @@ Under **Settings** > **Rating Scales**:
 * **MG Motors (10-Point Scale)**:
   * `9 - 10`: Satisfied
   * `1 - 8`: Poor / Dissatisfied (`is_complaint_trigger = true`)
+* **Ather Energy (TNPS Follow-up Program)**:
+  * Ather Energy uses a brand-scoped follow-up program labeled **TNPS** (`enable_tnps = true`, `tnps_label = "TNPS"`).
+  * Ather job cards import directly into `queue_type = "TNPS"` and are allocated equally among present CRE callers upon DMS import (no secondary delayed schedule).
+  * Survey consists of `ather_jobs_satisfaction` (Yes/No) and `ather_tnps_rating` (0-10 scale), scoring Promoters (9-10), Passives (7-8), and Detractors (0-6).
+  * The dedicated dashboard widget **TNPS Calls** groups calling queues exclusively across Ather branches (Bangalore, Belgaum, Hubballi, Sirsi).
 
 ### 4.2 Editing Complaint Triggers
 Any rating band can be configured in real-time by toggling the `is_complaint_trigger` switch. When enabled, any WhatsApp rating or phone VOC survey landing in this score band automatically creates a tracked complaint ticket with SLA timer.

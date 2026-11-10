@@ -13,8 +13,6 @@ The following columns from the legacy spreadsheet are explicitly **dropped** dur
 | **5** | `Brand Logo` | AppSheet local image asset path (`PSF_Images/...`). Brands manage logos via central media/S3 upload in platform settings. |
 | **67** | `Closure Doc` | AppSheet local filesystem image/pdf path (`PSF_Images/...`). Document attachments are managed via MinIO pre-signed S3 URLs. |
 | **70** | `Update Changes` | Redundant counter identical to `Total Attempted` tracking legacy formula recalculations. |
-| **77** | `Ather Docs` | AppSheet local filesystem asset path for Ather gate pass PDFs. |
-| **94** | `Document (TNPS)` | AppSheet local filesystem asset path for TNPS paperwork. |
 | **111** | `8` | Empty spreadsheet column with artifact header name `"8"`. |
 | **114** | `9` | Empty spreadsheet column with artifact header name `"9"`. |
 
@@ -100,8 +98,8 @@ The following columns from the legacy spreadsheet are explicitly **dropped** dur
 | **73** | `Alt Contact Number` | `customers` | `alt_phone` | `VARCHAR(255)` | Encrypted at rest (AES-128-CBC) |
 | **74** | `Current Status` | `complaints` | `status` | `VARCHAR(40)` | "Closed in Time" / "Closed Late" / "Open" |
 | **75** | `Technician` | `job_cards` | `technician_name` | `VARCHAR(120)` | Assigned service technician |
-| **76** | `Where all the jobs requested by you done up to your satisfaction?` | `survey_responses.answers` | `ather_jobs_satisfaction` | `VARCHAR(10)` | Brand survey question (Ather) |
-| **77** | `Ather Docs` | *DROPPED* | — | — | AppSheet local filesystem asset path |
+| **76** | `Where all the jobs requested by you done up to your satisfaction?` | `survey_responses.answers` | `ather_jobs_satisfaction` | `VARCHAR(10)` | Brand survey question (Ather Energy: "Yes" / "No") |
+| **77** | `Ather Docs` | `documents` | `file_url` | `VARCHAR(500)` | Gate pass/invoice document linked to Ather JobCard via MinIO storage |
 | **78** | `Taking everything into consideration, how likely are you to recommend JSW MG Brand to your Family or friends?` | `survey_responses.answers` | `mg_recommend_brand_nps` | `INTEGER` | MG OEM NPS rating (0-10) |
 | **79** | `How likely are you to recommend MG Workshop from where you got your vehicle serviced, to your Family or friend ?` | `survey_responses.answers` | `mg_recommend_workshop_nps` | `INTEGER` | MG Workshop NPS rating (0-10) |
 | **80** | `What specific improvement areas would make you recommend dealer?` | `survey_responses.answers` | `mg_improvement_areas` | `TEXT` | MG feedback text |
@@ -113,13 +111,13 @@ The following columns from the legacy spreadsheet are explicitly **dropped** dur
 | **86** | `Could you pls elaborate that what did not happen at the workshop?` | `survey_responses.answers` | `mg_charges_explanation_notes` | `TEXT` | Feedback detail |
 | **87** | `Were all the jobs requested or issues informed by you resolved in the 1st attempt itself?` | `survey_responses.answers` | `mg_first_attempt_resolution` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
 | **88** | `Could you pls elaborate what did not happen as per expectation at workshop?` | `survey_responses.answers` | `mg_first_attempt_reasons` | `TEXT` | First attempt failure reasons |
-| **89** | `TNPS Followed By` | `tnps_calls` | `conducted_by_id` | `UUIDv7` | TNPS caller user |
-| **90** | `TNPS Followed Timestamp` | `tnps_calls` | `called_at` | `TIMESTAMPTZ` | TNPS dial timestamp |
-| **91** | `TNPS Call Status` | `tnps_calls` | `call_status` | `VARCHAR(50)` | Connected / Not Connected |
-| **92** | `TNPS VOC` | `tnps_calls` | `voc` | `TEXT` | TNPS verbatim feedback |
-| **93** | `TNPS Ratings` | `tnps_calls` | `brand_recommend_score` | `INTEGER` | TNPS score (0-10) |
-| **94** | `Document (TNPS)` | *DROPPED* | — | — | AppSheet local filesystem asset path |
-| **95** | `TNPS Date` | `followup_queues`| `scheduled_tnps_date` | `DATE` | Scheduled TNPS date (typically T+7 days after PSF) |
+| **89** | `TNPS Followed By` | `calls` | `called_by_id` | `UUIDv7` | Ather Energy follow-up caller user (CRE) |
+| **90** | `TNPS Followed Timestamp` | `calls` | `called_at` | `TIMESTAMPTZ` | Ather Energy follow-up dial timestamp |
+| **91** | `TNPS Call Status` | `calls` | `call_status` | `VARCHAR(50)` | Ather Energy call status (Connected / Not Connected) |
+| **92** | `TNPS VOC` | `calls` | `voc` | `TEXT` | Ather Energy verbatim customer feedback |
+| **93** | `TNPS Ratings` | `survey_responses.answers` | `ather_tnps_rating` | `INTEGER` | Ather Energy TNPS score (0-10 scale) |
+| **94** | `Document (TNPS)` | `documents` | `file_url` | `VARCHAR(500)` | Paperwork document linked to JobCard via MinIO storage |
+| **95** | `TNPS Date` | `job_cards` | `legacy_tnps_date` | `DATE` | Raw legacy field from DMS (29 Hyundai rows); preserved for audit, zero scheduling behaviour |
 | **96** | `Followed By Advisor` | `advisor_calls` | `advisor_id` | `UUIDv7` | Service Advisor User ID |
 | **97** | `Timestamp` | `advisor_calls` | `called_at` | `TIMESTAMPTZ` | Advisor follow-up timestamp |
 | **98** | `Adv Call Status` | `advisor_calls` | `adv_call_status` | `VARCHAR(50)` | Connected, Call Later |

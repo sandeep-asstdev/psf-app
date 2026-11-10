@@ -784,10 +784,10 @@ async def test_cre_admin_cannot_edit_allocation_rules():
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # Login as CRE Admin
+        # Login as CRE Admin / Dealer Admin
         cre_admin_login = await client.post(
             "/api/v1/auth/login",
-            json={"email": "cre.admin@apexauto.com", "password": "Password@12345"},
+            json={"email": "dealer.admin@apexauto.com", "password": "Dealer@12345"},
         )
         assert cre_admin_login.status_code == 200
         cre_admin_headers = {"Authorization": f"Bearer {cre_admin_login.json()['access_token']}"}

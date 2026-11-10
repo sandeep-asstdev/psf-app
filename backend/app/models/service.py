@@ -78,6 +78,7 @@ class JobCard(Base):
     odometer_reading: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     promised_delivery_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     actual_delivery_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    legacy_tnps_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
     uploaded_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

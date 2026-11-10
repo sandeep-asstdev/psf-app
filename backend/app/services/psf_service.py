@@ -232,6 +232,44 @@ async def get_dashboard_stats(
     )
     unassigned_count = (await db.execute(unassigned_stmt)).scalar() or 0
 
+    # TNPS Calls by Branch (Ather Energy / TNPS-enabled brands only)
+    tnps_branch_stmt = (
+        select(
+            Branch.id.label("branch_id"),
+            Branch.name.label("branch_name"),
+            Brand.name.label("brand_name"),
+            Brand.code.label("brand_code"),
+            func.count(FollowupQueue.id).label("total_calls"),
+            func.count(FollowupQueue.id).filter(FollowupQueue.status.in_(pending_statuses)).label("pending_count"),
+            func.count(FollowupQueue.id).filter(FollowupQueue.status.in_(["CONTACTED", "CONNECTED"])).label("contacted_count"),
+        )
+        .join(JobCard, FollowupQueue.job_card_id == JobCard.id)
+        .join(Branch, JobCard.branch_id == Branch.id)
+        .join(Brand, JobCard.brand_id == Brand.id)
+        .where(
+            FollowupQueue.tenant_id == tenant_id,
+            FollowupQueue.is_deleted == False,
+            FollowupQueue.queue_type == "TNPS",
+            JobCard.is_deleted == False,
+            or_(Brand.enable_tnps == True, Brand.code.in_(["ATHER", "ATHER_ENERGY"]), Brand.name.ilike("%Ather%")),
+        )
+        .group_by(Branch.id, Branch.name, Brand.name, Brand.code)
+        .order_by(Branch.name)
+    )
+    tnps_branch_rows = (await db.execute(tnps_branch_stmt)).all()
+    tnps_calls_by_branch = [
+        {
+            "branch_id": str(r.branch_id),
+            "branch_name": r.branch_name,
+            "brand_name": r.brand_name,
+            "brand_code": r.brand_code,
+            "total_calls": r.total_calls,
+            "pending_count": r.pending_count,
+            "contacted_count": r.contacted_count,
+        }
+        for r in tnps_branch_rows
+    ]
+
     return PsfDashboardStats(
         total_pending=total_pending,
         total_contacted=total_contacted,
@@ -244,6 +282,7 @@ async def get_dashboard_stats(
         closed_complaints_by_branch=closed_complaints_by_branch,
         by_advisor=by_advisor,
         by_assigned_cre=by_assigned_cre,
+        tnps_calls_by_branch=tnps_calls_by_branch,
         unassigned_count=unassigned_count,
     )
 

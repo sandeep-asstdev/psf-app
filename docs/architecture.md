@@ -7,7 +7,7 @@
 In the automotive service industry, the customer journey does not end when the invoice is paid and the vehicle is delivered. The **Customer Relations Executive (CRE / CRM)** team must contact the customer within 24 to 72 hours post-delivery to:
 1. Confirm service quality, delivery timeliness, and advisor transparency.
 2. Capture structured survey responses across brand-specific quality metrics (PSF questionnaire).
-3. Compute **CSAT** (Customer Satisfaction) and **NPS / TNPS** (Transactional Net Promoter Score).
+3. Compute **CSAT** (Customer Satisfaction) and **NPS** (Net Promoter Score; note: "TNPS" is the brand-specific name of the PSF follow-up program for Ather Energy).
 4. Identify dissatifactions, log complaints immediately, and route them to workshop managers or service advisors.
 5. Track complaint resolution through a strict SLA-driven workflow and conduct mandatory **Post-Resolution Reconfirmation calls**.
 6. Provide Service Advisors with direct access to feedback assigned to them for corrective action.
@@ -233,7 +233,7 @@ flowchart TD
     Dedup -->|Exists| UpdateOrSkip["Update Existing or Log Skip"]
     Dedup -->|New| InsertJob["Insert job_cards Record"]
     
-    InsertJob --> QueueGen["Create followup_queues (PSF, TNPS, Happiness)"]
+    InsertJob --> QueueGen["Create followup_queues (Ather: TNPS; Hyundai/Tata/MG: PSF + Happiness)"]
     QueueGen --> Allocator{"Allocation Strategy"}
     
     Allocator -->|Round-Robin| AssignCRE["Distribute evenly among Active Branch CREs"]

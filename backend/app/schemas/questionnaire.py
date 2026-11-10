@@ -33,7 +33,7 @@ class QuestionBase(BaseModel):
         description="rating_5 | nps_10 | yes_no | yes_no_na | single_select | multi_select | text | number",
     )
     section: str = Field("General", max_length=80, description="Logical UI section grouping")
-    options: Optional[List[Dict[str, Any]]] = None
+    options: Optional[Union[List[Any], Dict[str, Any]]] = None
     show_if: Optional[Dict[str, Any]] = None # e.g. {"field": "mg_advisor_rating", "operator": "<=", "value": 3}
     weight: Decimal = Decimal("1.0")
     display_order: int = 0
@@ -49,7 +49,7 @@ class QuestionUpdate(BaseModel):
     label: Optional[str] = None
     type: Optional[str] = None
     section: Optional[str] = None
-    options: Optional[List[Dict[str, Any]]] = None
+    options: Optional[Union[List[Any], Dict[str, Any]]] = None
     show_if: Optional[Dict[str, Any]] = None
     weight: Optional[Decimal] = None
     display_order: Optional[int] = None

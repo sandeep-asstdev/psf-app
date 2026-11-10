@@ -366,6 +366,66 @@ export default function PsfDashboardPage() {
         </div>
       </div>
 
+      {/* Ather Energy TNPS Calls Widget (Only visible when Ather TNPS is present) */}
+      {stats?.tnps_calls_by_branch?.length > 0 && (
+        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60 dark:border-emerald-800/60 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
+                Ather Energy TNPS Follow-up Calls (By Workshop Branch)
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedQueueType('TNPS');
+                setPage(0);
+              }}
+              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1"
+            >
+              <span>View All Ather TNPS Calls</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {stats.tnps_calls_by_branch.map((b) => (
+              <div
+                key={b.branch_id}
+                onClick={() => {
+                  setSelectedBranch(b.branch_id);
+                  setSelectedQueueType('TNPS');
+                  setPage(0);
+                }}
+                className="cursor-pointer bg-white dark:bg-slate-900 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/50 hover:border-emerald-500 transition shadow-xs"
+              >
+                <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {b.branch_name}
+                </div>
+                <div className="mt-2 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Pending:</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">
+                    {b.pending_count}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Contacted:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                    {b.contacted_count}
+                  </span>
+                </div>
+                <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">Total TNPS:</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 font-mono">
+                    {b.total_calls}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 3. MINIMAL FILTERS & SEARCH BAR */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm space-y-3">
         <div className="flex flex-col md:flex-row gap-2.5 items-stretch md:items-center justify-between">

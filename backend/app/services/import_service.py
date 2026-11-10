@@ -44,6 +44,7 @@ from app.models.auth import User, Role, UserScope
 from app.core.crypto import encrypt_phone, hash_phone, uuid7
 from app.core.security import get_password_hash
 from app.services.allocation_service import allocate_queue_items
+from app.services.config_resolver import ConfigResolverService
 from app.schemas.import_job import (
     ImportPreviewResponse,
     ImportPreviewRow,
@@ -1183,41 +1184,38 @@ async def process_import(
             db.add(job_card)
             await db.flush()
 
-            # 16. Create FollowupQueue items
-            # (a) Standard PSF calling queue (due next morning 10 AM)
-            due_psf = datetime.combine(parsed_date + timedelta(days=1), time(10, 0))
-            psf_queue = FollowupQueue(
-                tenant_id=tenant_id,
-                job_card_id=job_card.id,
-                queue_type="PSF",
-                status="PENDING",
-                assigned_to_id=None,
-                due_at=due_psf,
-                attempts=0,
-                contacted_count=0,
-            )
-            db.add(psf_queue)
-            new_queues.append(psf_queue)
-            queues_created += 1
+            # 16. Create FollowupQueue items from brand's enabled programs
+            programs = await ConfigResolverService.get_active_programs_for_brand(db, tenant_id, brand_obj.id)
+            if not programs:
+                programs = [type('Prog', (), {'id': None, 'code': 'PSF', 'trigger': 'ON_IMPORT', 'channel': 'PHONE'})()]
 
-            # (b) OEM Constraint: Hyundai 15-day Happiness Calling
-            is_hyundai = "HYUNDAI" in brand_obj.name.upper() or brand_obj.code.upper() in ["HYUN", "HYUNDAI"]
-            if is_hyundai:
-                due_happiness = datetime.combine(parsed_date + timedelta(days=15), time(10, 0))
-                happiness_queue = FollowupQueue(
+            for prog in programs:
+                trigger = prog.trigger.upper().strip() if prog.trigger else "ON_IMPORT"
+                if trigger.startswith("AFTER_DAYS"):
+                    match = re.search(r"\d+", trigger)
+                    days = int(match.group(0)) if match else 15
+                    due_at = datetime.combine(parsed_date + timedelta(days=days), time(10, 0))
+                elif trigger == "AFTER_COMPLAINT_CLOSURE":
+                    continue
+                else: # ON_IMPORT
+                    due_at = datetime.combine(parsed_date + timedelta(days=1), time(10, 0))
+
+                queue_item = FollowupQueue(
                     tenant_id=tenant_id,
                     job_card_id=job_card.id,
-                    queue_type="HAPPINESS",
+                    program_id=prog.id if hasattr(prog, 'id') else None,
+                    queue_type=prog.code,
                     status="PENDING",
                     assigned_to_id=None,
-                    due_at=due_happiness,
+                    due_at=due_at,
                     attempts=0,
                     contacted_count=0,
                 )
-                db.add(happiness_queue)
-                new_queues.append(happiness_queue)
+                db.add(queue_item)
+                new_queues.append(queue_item)
                 queues_created += 1
-                happiness_scheduled += 1
+                if prog.code == "HAPPINESS":
+                    happiness_scheduled += 1
 
             success_count += 1
 
@@ -1537,33 +1535,40 @@ async def create_job_card_from_webhook(
     db.add(job_card)
     await db.flush()
 
-    # 8. Followup Queue
-    due_psf = datetime.combine(payload.job_card_date + timedelta(days=1), time(10, 0))
-    psf_queue = FollowupQueue(
-        tenant_id=tenant_id,
-        job_card_id=job_card.id,
-        queue_type="PSF",
-        status="PENDING",
-        due_at=due_psf,
-        attempts=0,
-        contacted_count=0,
-    )
-    db.add(psf_queue)
+    # 8. Followup Queue from brand's enabled programs
+    programs = await ConfigResolverService.get_active_programs_for_brand(db, tenant_id, brand.id)
+    if not programs:
+        programs = [type('Prog', (), {'id': None, 'code': 'PSF', 'trigger': 'ON_IMPORT', 'channel': 'PHONE'})()]
 
+    created_queue_id = None
     happiness_created = False
-    if is_hyundai:
-        due_hap = datetime.combine(payload.job_card_date + timedelta(days=15), time(10, 0))
-        hap_queue = FollowupQueue(
+    for prog in programs:
+        trigger = prog.trigger.upper().strip() if prog.trigger else "ON_IMPORT"
+        if trigger.startswith("AFTER_DAYS"):
+            match = re.search(r"\d+", trigger)
+            days = int(match.group(0)) if match else 15
+            due_at = datetime.combine(payload.job_card_date + timedelta(days=days), time(10, 0))
+        elif trigger == "AFTER_COMPLAINT_CLOSURE":
+            continue
+        else:
+            due_at = datetime.combine(payload.job_card_date + timedelta(days=1), time(10, 0))
+
+        q_item = FollowupQueue(
             tenant_id=tenant_id,
             job_card_id=job_card.id,
-            queue_type="HAPPINESS",
+            program_id=prog.id if hasattr(prog, 'id') else None,
+            queue_type=prog.code,
             status="PENDING",
-            due_at=due_hap,
+            due_at=due_at,
             attempts=0,
             contacted_count=0,
         )
-        db.add(hap_queue)
-        happiness_created = True
+        db.add(q_item)
+        await db.flush()
+        if created_queue_id is None:
+            created_queue_id = str(q_item.id)
+        if prog.code == "HAPPINESS":
+            happiness_created = True
 
     await db.commit()
 
@@ -1572,7 +1577,8 @@ async def create_job_card_from_webhook(
         "job_card_id": str(job_card.id),
         "job_card_no": job_card.job_card_no,
         "customer_id": str(customer.id),
-        "psf_queue_id": str(psf_queue.id),
+        "queue_id": created_queue_id,
+        "psf_queue_id": created_queue_id,
         "happiness_scheduled": happiness_created,
     }
 

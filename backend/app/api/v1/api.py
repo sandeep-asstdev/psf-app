@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.api.deps import get_current_active_user
 from app.models.auth import User
-from app.api.v1.endpoints import health, auth, users, masters, questionnaires, imports, psf, complaints, reports, admin_console, allocation
+from app.api.v1.endpoints import health, auth, users, masters, questionnaires, imports, psf, complaints, reports, admin_console, allocation, config
 
 api_router = APIRouter()
 
@@ -47,6 +47,7 @@ api_router.include_router(users.router)
 
 # Dynamic Permissions & Admin Console
 api_router.include_router(admin_console.router)
+api_router.include_router(config.router)
 
 # Phase 3: Masters, Settings & Dynamic Questionnaire Engine
 api_router.include_router(masters.router)

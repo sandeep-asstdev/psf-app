@@ -170,7 +170,7 @@ async def seed_questionnaires():
                 print(f"  ✓ Created Hyundai Happiness Questionnaire with {len(happy_questions)} questions (Exclusive to Hyundai)")
 
         # -------------------------------------------------------------
-        # 3. MG MOTORS PSF & TNPS Questionnaire
+        # 3. MG MOTORS PSF Questionnaire
         # -------------------------------------------------------------
         if mg:
             mg_stmt = select(Questionnaire).where(
@@ -185,7 +185,7 @@ async def seed_questionnaires():
                     tenant_id=tenant.id,
                     brand_id=mg.id,
                     type="PSF",
-                    title="MG Motors PSF & TNPS Quality Survey",
+                    title="MG Motors Customer Satisfaction Survey",
                     version=1,
                     is_active=True,
                 )
@@ -222,40 +222,40 @@ async def seed_questionnaires():
                 print(f"  ✓ Created MG Motors PSF Questionnaire with {len(mg_questions)} questions")
 
         # -------------------------------------------------------------
-        # 4. ATHER ENERGY PSF Questionnaire
+        # 4. ATHER ENERGY TNPS Questionnaire (Ather's PSF Programme)
         # -------------------------------------------------------------
         if ather:
             ather_stmt = select(Questionnaire).where(
                 Questionnaire.tenant_id == tenant.id,
                 Questionnaire.brand_id == ather.id,
-                Questionnaire.type == "PSF",
+                Questionnaire.type == "TNPS",
                 Questionnaire.version == 1,
             )
-            ather_psf = (await db.execute(ather_stmt)).scalar_one_or_none()
-            if not ather_psf:
-                ather_psf = Questionnaire(
+            ather_tnps = (await db.execute(ather_stmt)).scalar_one_or_none()
+            if not ather_tnps:
+                ather_tnps = Questionnaire(
                     tenant_id=tenant.id,
                     brand_id=ather.id,
-                    type="PSF",
-                    title="Ather Energy EV Post Service Feedback",
+                    type="TNPS",
+                    title="Ather Energy TNPS Survey",
                     version=1,
                     is_active=True,
                 )
-                db.add(ather_psf)
+                db.add(ather_tnps)
                 await db.flush()
 
                 ather_questions = [
-                    ("ather_jobs_satisfaction", "Were all service jobs completed to your full satisfaction?", "yes_no", "EV Service Quality", None, None, 2.0, 1, True),
-                    ("ather_charging_status", "Was the scooter charged to at least 80% SoC at delivery?", "rating_5", "EV Service Quality", None, None, 1.5, 2, True),
-                    ("ather_ota_explained", "Were latest software/OTA features explained by service staff?", "yes_no_na", "Software & Features", None, None, 1.0, 3, False),
-                    ("ather_doc_uploaded", "Was digital gate pass & tax invoice received on WhatsApp?", "yes_no", "Digital Handover", None, None, 1.0, 4, False),
-                    ("ather_workshop_experience", "How likely are you to recommend Ather Space service to an EV buyer? (0-10)", "nps_10", "Overall CSAT", None, None, 2.0, 5, True),
+                    ("ather_jobs_satisfaction", "Where all the jobs requested by you done up to your satisfaction?", "yes_no", "EV Service Quality", None, None, 2.0, 1, True),
+                    ("ather_tnps_rating", "On a scale of 0 to 10, how likely are you to recommend Ather to friends, family or colleagues?", "nps_10", "TNPS Recommendation", {"min": 0, "max": 10, "scale": "0-10"}, None, 2.0, 2, True),
+                    ("ather_charging_status", "Was the scooter charged to at least 80% SoC at delivery?", "yes_no_na", "EV Service Quality", None, None, 1.5, 3, False),
+                    ("ather_ota_explained", "Were latest software/OTA features explained by service staff?", "yes_no_na", "Software & Features", None, None, 1.0, 4, False),
+                    ("ather_doc_uploaded", "Was digital gate pass & tax invoice received on WhatsApp?", "yes_no", "Digital Handover", None, None, 1.0, 5, False),
                 ]
 
                 for key, label, qtype, sec, opts, s_if, wt, ord_idx, req in ather_questions:
                     db.add(Question(
                         tenant_id=tenant.id,
-                        questionnaire_id=ather_psf.id,
+                        questionnaire_id=ather_tnps.id,
                         key=key,
                         label=label,
                         type=qtype,
@@ -266,7 +266,7 @@ async def seed_questionnaires():
                         display_order=ord_idx,
                         is_required=req,
                     ))
-                print(f"  ✓ Created Ather Energy PSF Questionnaire with {len(ather_questions)} questions")
+                print(f"  ✓ Created Ather Energy TNPS Questionnaire with {len(ather_questions)} questions")
 
         # -------------------------------------------------------------
         # 5. RECONFIRMATION Questionnaire (Used after complaint resolution)

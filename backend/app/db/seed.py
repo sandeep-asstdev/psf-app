@@ -309,6 +309,8 @@ async def seed():
                     name=b_name,
                     code=b_code,
                     primary_color=b_color,
+                    enable_tnps=(b_code == "ATHER"),
+                    tnps_label="TNPS",
                     is_active=True,
                 )
                 db.add(brand)

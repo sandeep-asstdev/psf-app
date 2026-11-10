@@ -118,7 +118,7 @@ PERMISSION_CATALOGUE = [
     {"category": "PSF Follow-up Calling", "key": PermissionKey.CALL_ALLOCATE, "label": "Allocate Calls", "description": "Assign pending follow-ups to specific CRE callers."},
     {"category": "PSF Follow-up Calling", "key": PermissionKey.CALL_REASSIGN, "label": "Reassign Calls", "description": "Transfer calls between callers or branches."},
     {"category": "PSF Follow-up Calling", "key": PermissionKey.SURVEY_FILL, "label": "Submit Survey Responses", "description": "Answer CSAT/NPS questionnaire items during follow-up."},
-    {"category": "PSF Follow-up Calling", "key": PermissionKey.TNPS_MAKE, "label": "Conduct TNPS Calls", "description": "Perform Day 7/8 Net Promoter Score follow-ups."},
+    {"category": "PSF Follow-up Calling", "key": PermissionKey.TNPS_MAKE, "label": "Conduct TNPS Calls", "description": "Conduct Ather Energy TNPS follow-up calls."},
     {"category": "PSF Follow-up Calling", "key": PermissionKey.RECONFIRMATION_MAKE, "label": "Conduct Post-Complaint Reconfirmations", "description": "Verify customer resolution satisfaction."},
     {"category": "PSF Follow-up Calling", "key": PermissionKey.ADVISOR_ACTION, "label": "Service Advisor Action", "description": "Review and action assigned advisor feedback tasks."},
     {"category": "Complaints & SLAs", "key": PermissionKey.COMPLAINT_VIEW, "label": "View Complaints", "description": "Access complaint tickets and timeline history."},

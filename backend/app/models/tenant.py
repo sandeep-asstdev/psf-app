@@ -55,6 +55,8 @@ class Brand(Base):
     code: Mapped[str] = mapped_column(String(30), nullable=False)
     logo_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     primary_color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    enable_tnps: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tnps_label: Mapped[str] = mapped_column(String(50), default="TNPS", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
