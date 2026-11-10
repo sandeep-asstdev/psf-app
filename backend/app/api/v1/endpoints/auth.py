@@ -1,3 +1,22 @@
+"""
+================================================================================
+FILE PURPOSE: Authentication, Token Refresh & Attendance Session Endpoints.
+Provides endpoints for staff login, logout (punch-out), token refresh,
+inspecting current user profile, and retrieving shift attendance logs.
+
+KEY RESPONSIBILITIES:
+- Authenticates credentials and returns JWT access + refresh tokens (`POST /auth/login`).
+- Records punch-out and revokes session on logout (`POST /auth/logout`).
+- Returns current logged-in user details and permissions (`GET /auth/me`).
+- Refreshes expired access tokens using refresh token (`POST /auth/refresh`).
+- Lists shift attendance records (`GET /auth/attendance/logs`).
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: HTTP 401 'Incorrect email or password'
+  -> Cause: Invalid credentials entered.
+  -> What should you do: Confirm user credentials. Default demo password is `Password@12345`.
+================================================================================
+"""
 import uuid
 from typing import Optional, List
 from datetime import datetime, timezone
@@ -14,8 +33,10 @@ from app.core.security import (
     decode_token,
 )
 from app.core.crypto import decrypt_phone
-from app.api.deps import get_current_user, get_current_active_user
+from app.api.deps import get_current_user, get_current_active_user, require
+from app.core.permissions import get_user_effective_permissions, PermissionKey
 from app.models.auth import User, Role, LoginLog
+from app.models.additional import AuditLog
 from app.schemas.auth import (
     LoginRequest,
     TokenResponse,
@@ -134,8 +155,9 @@ async def logout(
     if token:
         try:
             payload = decode_token(token)
-            jti = payload.get("jti", str(current_user.id))
-            await blacklist_token(jti)
+            jti = payload.get("jti")
+            if jti:
+                await blacklist_token(jti)
         except Exception:
             pass
 
@@ -179,6 +201,7 @@ async def get_current_user_profile(
         )
 
     decrypted_phone = decrypt_phone(current_user.phone) if current_user.phone else None
+    effective = await get_user_effective_permissions(db, current_user)
 
     return CurrentUserResponse(
         id=current_user.id,
@@ -190,7 +213,12 @@ async def get_current_user_profile(
         is_active=current_user.is_active,
         role_id=current_user.role_id,
         role_name=current_user.role.name if current_user.role else "USER",
-        permissions=current_user.role.permissions if current_user.role else [],
+        level=effective.get("level", "L3"),
+        is_super_admin=effective.get("is_super_admin", False),
+        permissions=list(effective.get("permissions", {}).keys()),
+        effective_permissions=effective.get("permissions", {}),
+        field_rules=effective.get("field_rules", {}),
+        dashboard_config=effective.get("dashboard_config", {}),
         tenant_id=current_user.tenant_id,
         tenant_name=current_user.tenant.name if current_user.tenant else "",
         tenant_slug=current_user.tenant.slug if current_user.tenant else "",
@@ -198,6 +226,81 @@ async def get_current_user_profile(
         scopes=scopes_data,
         active_shift_login=active_shift_login,
     )
+
+
+@router.get("/me/permissions")
+async def get_my_permissions(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return data-driven permissions catalogue, effective user scopes, and field rules."""
+    effective = await get_user_effective_permissions(db, current_user)
+    return effective
+
+
+@router.post("/impersonate/{target_user_id}")
+async def impersonate_user(
+    target_user_id: uuid.UUID,
+    request: Request,
+    response: Response,
+    reason: str = "Administrator simulation",
+    current_user: User = Depends(require(PermissionKey.ROLE_MANAGE)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Super Admin view-as-user mode: issues scoped JWT with impersonation claim and logs audit."""
+    target_stmt = (
+        select(User)
+        .options(selectinload(User.role), selectinload(User.scopes))
+        .where(User.id == target_user_id, User.is_deleted == False)
+    )
+    target_user = (await db.execute(target_stmt)).scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found")
+
+    # Record audit log
+    audit = AuditLog(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action="USER_IMPERSONATION_STARTED",
+        entity_type="USER",
+        entity_id=str(target_user.id),
+        new_values={"target_email": target_user.email, "target_name": target_user.full_name},
+        reason=reason,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.add(audit)
+    await db.commit()
+
+    token_data = {
+        "sub": str(target_user.id),
+        "email": target_user.email,
+        "tenant_id": str(target_user.tenant_id),
+        "role": target_user.role.name if target_user.role else "USER",
+        "impersonated_by": str(current_user.id),
+    }
+    impersonation_token = create_access_token(token_data)
+
+    return {
+        "access_token": impersonation_token,
+        "token_type": "bearer",
+        "impersonated": True,
+        "impersonated_user": {
+            "id": str(target_user.id),
+            "name": target_user.full_name,
+            "email": target_user.email,
+            "role": target_user.role.name if target_user.role else "USER",
+        },
+        "user": {
+            "id": str(target_user.id),
+            "full_name": target_user.full_name,
+            "email": target_user.email,
+            "role": target_user.role.name if target_user.role else "USER",
+            "role_name": target_user.role.name if target_user.role else "USER",
+        },
+        "real_admin_id": str(current_user.id),
+        "message": f"Successfully switched to viewing as {target_user.full_name}",
+    }
 
 
 @router.get("/login-logs", response_model=List[LoginLogSchema])
@@ -265,3 +368,4 @@ async def list_roles(
     result = await db.execute(stmt)
     roles = result.scalars().all()
     return roles
+

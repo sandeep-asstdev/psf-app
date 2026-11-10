@@ -1,3 +1,23 @@
+"""
+================================================================================
+FILE PURPOSE: Redis In-Memory Cache & Pub/Sub Connection Pool.
+This file provides an asynchronous Redis client connection used for distributed locking
+(preventing duplicate file imports), real-time WebSocket notifications, and transient caching.
+
+KEY RESPONSIBILITIES:
+- Manages Redis connection pool and async client lifecycle.
+- Provides `get_redis()` helper function to get an active Redis client.
+- Provides `close_redis()` helper called during app shutdown to clean up connections.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: redis.exceptions.ConnectionError: Error connecting to redis:6379
+  -> Cause: The Redis container (psf_redis) is down or port is blocked.
+  -> What should you do: Run `docker ps` to verify psf_redis is running. Run `docker restart psf_redis` if needed. Check REDIS_URL in .env.
+- Error: WebSocket notifications not reaching CREs
+  -> Cause: Redis pub/sub channel communication failed.
+  -> What should you do: Test Redis by running `docker exec psf_redis redis-cli ping`. Expected response is `PONG`.
+================================================================================
+"""
 import logging
 from typing import Optional
 import redis.asyncio as aioredis

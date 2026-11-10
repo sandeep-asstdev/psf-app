@@ -1,4 +1,26 @@
+"""
+================================================================================
+FILE PURPOSE: Password Hashing & JWT Authentication Tokens.
+This file handles securing passwords with Passlib Bcrypt hashing and creating / decoding
+JSON Web Tokens (JWT) for user authentication sessions.
+
+KEY RESPONSIBILITIES:
+- Hashes plain-text passwords securely using bcrypt with automatic salting (`get_password_hash`).
+- Verifies entered login passwords against stored database hashes (`verify_password`).
+- Generates JWT Access Tokens (short-lived) and Refresh Tokens (long-lived) (`create_access_token`).
+- Decodes and validates JWT signatures (`decode_token`).
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: jwt.exceptions.ExpiredSignatureError: Signature has expired
+  -> Cause: The user's access token has timed out (default 60 minutes).
+  -> What should you do: The frontend should automatically refresh the token using /auth/refresh or redirect the user to /login to log in again.
+- Error: jwt.exceptions.InvalidTokenError: Could not validate credentials
+  -> Cause: The token is malformed or signed with a different SECRET_KEY.
+  -> What should you do: Ensure SECRET_KEY has not changed in .env. Log out and log in again with valid credentials.
+================================================================================
+"""
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import bcrypt
@@ -41,7 +63,12 @@ def create_access_token(
     else:
         expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode.update({"exp": expire, "iat": now, "type": "access"})
+    to_encode.update({
+        "jti": str(uuid.uuid4()),
+        "exp": expire,
+        "iat": now,
+        "type": "access",
+    })
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -58,7 +85,12 @@ def create_refresh_token(
     else:
         expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
-    to_encode.update({"exp": expire, "iat": now, "type": "refresh"})
+    to_encode.update({
+        "jti": str(uuid.uuid4()),
+        "exp": expire,
+        "iat": now,
+        "type": "refresh",
+    })
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 

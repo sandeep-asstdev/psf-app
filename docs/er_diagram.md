@@ -10,12 +10,18 @@ erDiagram
     TENANTS ||--o{ SETTINGS : configures
     TENANTS ||--o{ IMPORT_BATCHES : processes
     TENANTS ||--o{ AUDIT_LOGS : records
+    TENANTS ||--o{ CALL_STATUSES : configures
+    TENANTS ||--o{ CASE_STATUSES : configures
 
     BRANDS ||--o{ BRANCHES : operates_in
     BRANDS ||--o{ QUESTIONNAIRES : defines
     BRANDS ||--o{ COMPLAINT_CATEGORIES : standardizes
     BRANDS ||--o{ JOB_CARDS : relates_to
+    BRANDS ||--o{ RATING_SCALES : defines_bands
 
+    RATING_SCALES ||--o{ RATING_SCALE_BANDS : partitions
+
+    BRANCHES ||--o{ BRANCH_CONTACTS : has_contacts
     BRANCHES ||--o{ USERS : assigned_to
     BRANCHES ||--o{ JOB_CARDS : services
     BRANCHES ||--o{ COMPLAINTS : resolves
@@ -24,6 +30,7 @@ erDiagram
     USERS ||--o{ LOGIN_LOGS : logs_sessions
     USERS ||--o{ FOLLOWUP_QUEUES : assigned_to
     USERS ||--o{ CALLS : conducts
+    USERS ||--o{ CALL_ATTEMPTS : logs_attempts
     USERS ||--o{ COMPLAINT_EVENTS : logs_events
 
     ROLES ||--o{ USERS : assigns_permissions
@@ -40,6 +47,7 @@ erDiagram
     JOB_CARDS ||--o{ DOCUMENTS : attaches
 
     FOLLOWUP_QUEUES ||--o{ CALLS : results_in
+    FOLLOWUP_QUEUES ||--o{ CALL_ATTEMPTS : logs_attempts
     FOLLOWUP_QUEUES ||--o{ REMINDERS : generates
 
     QUESTIONNAIRES ||--o{ QUESTIONS : contains
@@ -87,22 +95,171 @@ Automobile OEM brands managed by the dealer group.
 Physical dealership service workshops and customer touchpoints.
 - `id` (UUIDv7, PK)
 - `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
-- `brand_id` (UUIDv7, FK -> brands.id, NOT NULL)
-- `name` (VARCHAR 150, NOT NULL): Branch name (e.g., "Central Service Centre").
-- `code` (VARCHAR 50, NOT NULL): DMS Branch code (e.g., "CSC-01").
+- `brand_id` (UUIDv7, FK -> brands.id, NULLABLE - e.g. multi-brand or unassigned review branches like Haveri TRZ)
+- `name` (VARCHAR 150, NOT NULL): Branch name (e.g., "HYUNDAI HUBLI").
+- `code` (VARCHAR 50, NOT NULL): Unique code (e.g., "HYUN-HUBLI").
+- `dms_code` (VARCHAR 50, NULLABLE): DMS dealer code (e.g. "S8211" for Hubli, "S8827" for Gadag).
+- `display_name` (VARCHAR 150, NULLABLE): Clean UI display name (e.g. "Hyundai Hubli").
+- `needs_review` (BOOLEAN, DEFAULT false): Review flag for unmapped legacy branches.
 - `address` (TEXT), `city` (VARCHAR 100), `state` (VARCHAR 100), `pincode` (VARCHAR 20)
-- `phone` (VARCHAR 30), `email` (VARCHAR 120)
+- `phone` (VARCHAR 255, encrypted), `email` (VARCHAR 120)
 - `is_active` (BOOLEAN, DEFAULT true)
-- *Indexes*: `(tenant_id, brand_id, code)` UNIQUE, `(tenant_id, is_active)`.
+- *Indexes*: `(tenant_id, code)` UNIQUE, `(tenant_id, is_active)`.
+
+#### `branch_contacts`
+Branch escalation contacts, Service Managers, and alert notification destinations.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `branch_id` (UUIDv7, FK -> branches.id, NOT NULL)
+- `role` (VARCHAR 50, NOT NULL): e.g. "SERVICE_MANAGER", "BRANCH_MANAGER".
+- `name` (VARCHAR 120, NOT NULL): Contact person name.
+- `phone` (VARCHAR 255, NOT NULL): Encrypted phone number (AES-128-CBC).
+- `phone_hash` (VARCHAR 64, NOT NULL, INDEXED): HMAC-SHA256 for deterministic lookup.
+- `email` (VARCHAR 150, NULLABLE): Contact email.
+- `notify_on` (VARCHAR 100): Alert triggers: "complaint,low_rating,daily_summary".
+- `is_active` (BOOLEAN, DEFAULT true)
+- *Indexes*: `(tenant_id, branch_id)`, `(phone_hash)`.
+
+#### `rating_scales`
+Brand-configured rating scales (e.g., Hyundai 1-10, Tata 1-5, MG 1-10).
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `brand_id` (UUIDv7, FK -> brands.id, NOT NULL)
+- `name` (VARCHAR 100, NOT NULL): Scale name (e.g., "Hyundai Rating Scale").
+- `max_rating` (SMALLINT, DEFAULT 10): 5 or 10.
+- `is_active` (BOOLEAN, DEFAULT true)
+- *Indexes*: `(tenant_id, brand_id)` UNIQUE.
+
+#### `rating_scale_bands`
+Rating score ranges with dynamic case status derivation and complaint triggers.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `scale_id` (UUIDv7, FK -> rating_scales.id, NOT NULL)
+- `min_score` (SMALLINT, NOT NULL): Lower score threshold.
+- `max_score` (SMALLINT, NOT NULL): Upper score threshold.
+- `label` (VARCHAR 50, NOT NULL): e.g., "Delight", "Average", "Poor", "Dissatisfied".
+- `derived_case_status` (VARCHAR 50, NOT NULL): Delight | Satisfied | Non-Delight | Dissatisfied.
+- `is_delight` (BOOLEAN, DEFAULT false): True if this band represents full delight.
+- `is_complaint_trigger` (BOOLEAN, DEFAULT false): True if low rating automatically opens complaint.
+- *Indexes*: `(scale_id, min_score, max_score)`.
+
+#### `call_statuses`
+Master configuration of call connection states.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `name` (VARCHAR 50, NOT NULL): "Connected", "Not Connected".
+- `category` (VARCHAR 40): SENTIMENT | CONTACT_FAILED | INVALID | DEFERRED.
+- `counts_as_contacted` (BOOLEAN, DEFAULT false)
+- `closes_followup` (BOOLEAN, DEFAULT false)
+- `retry_allowed` (BOOLEAN, DEFAULT true)
+- `color` (VARCHAR 20): Hex color badge.
+- *Indexes*: `(tenant_id, name)` UNIQUE.
+
+#### `case_statuses`
+Master configuration of customer outcome sentiment and operational states.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `name` (VARCHAR 50, NOT NULL): e.g. Delight, Satisfied, Non-Delight, Dissatisfied, No Response, Not Reachable...
+- `category` (VARCHAR 40): SENTIMENT | CONTACT_FAILED | INVALID | DEFERRED.
+- `counts_as_contacted` (BOOLEAN, DEFAULT false)
+- `closes_followup` (BOOLEAN, DEFAULT false)
+- `retry_allowed` (BOOLEAN, DEFAULT true)
+- `color` (VARCHAR 20): Hex color badge.
+- *Indexes*: `(tenant_id, name)` UNIQUE.
+
+#### `call_attempts`
+Per-attempt call attempt logs replacing flat spreadsheet counter increments.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `followup_queue_id` (UUIDv7, FK -> followup_queues.id, NOT NULL)
+- `attempt_number` (INTEGER, DEFAULT 1): Attempt sequential number (1, 2, 3...).
+- `call_status` (VARCHAR 50, NOT NULL): Connected | Not Connected.
+- `case_status` (VARCHAR 50, NULLABLE): Outcome of this dial attempt.
+- `voc` (TEXT, NULLABLE): Specific remarks/notes from this attempt.
+- `rating` (SMALLINT, NULLABLE): Rating score if given during this attempt.
+- `called_by_id` (UUIDv7, FK -> users.id, NULLABLE): CRE caller user.
+- `called_at` (TIMESTAMPTZ, DEFAULT now()): Dial timestamp.
+- `duration_seconds` (INTEGER, DEFAULT 0): Duration in seconds.
+- *Indexes*: `(followup_queue_id, attempt_number)`.
 
 #### `roles`
-System-wide and tenant-specific role definitions.
+System-wide and tenant-specific role definitions. Supports hierarchical levels L1 (Super Admin), L2 (CRE Admin), and L3 (Branch Level).
 - `id` (UUIDv7, PK)
 - `tenant_id` (UUIDv7, FK -> tenants.id, NULLABLE for global roles)
-- `name` (VARCHAR 50, NOT NULL): e.g., "SUPER_ADMIN", "DEALER_ADMIN", "BRAND_MANAGER", "BRANCH_MANAGER", "CRE", "SERVICE_ADVISOR", "AUDITOR".
+- `name` (VARCHAR 50, NOT NULL): e.g., "SUPER_ADMIN", "CRE_ADMIN", "BRANCH_MANAGER", "BRANCH_CRE", "SERVICE_ADVISOR", "AUDITOR".
 - `description` (TEXT)
-- `permissions` (JSONB, NOT NULL): Array of granted permission strings (e.g., `["psf:read", "psf:call", "complaints:manage"]`).
+- `level` (VARCHAR 10, DEFAULT 'L3'): 'L1' | 'L2' | 'L3'
 - `is_system` (BOOLEAN, DEFAULT false): Prevent deletion of system roles.
+- `is_active` (BOOLEAN, DEFAULT true)
+- `dashboard_config` (JSONB, DEFAULT {}): Role-specific dashboard widget ordering and filters.
+- `field_rules` (JSONB, DEFAULT {}): Role-specific field visibility rules (e.g. phone masked unless contact.unmask).
+- `permissions` (JSONB, DEFAULT []): Array of granted permission keys.
+- *Indexes*: `(tenant_id, name)`, `(level)`.
+
+#### `role_permissions`
+Data-driven dynamic permissions matrix. Links roles to resource action keys with granular data scope.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NULLABLE)
+- `role_id` (UUIDv7, FK -> roles.id, NOT NULL)
+- `permission` (VARCHAR 100, NOT NULL): Resource action key (e.g., 'complaint.close', 'brand.manage', 'jobcard.import')
+- `data_scope` (VARCHAR 30, NOT NULL, DEFAULT 'ALL'): 'ALL' | 'DEALERSHIP' | 'ASSIGNED_BRANCHES' | 'OWN'
+- `created_at` (TIMESTAMPTZ, DEFAULT now())
+- *Indexes*: `(role_id, permission)` UNIQUE, `(tenant_id, role_id)`.
+
+#### `custom_field_definitions`
+Dynamic field schemas extending core entities per brand without database migrations.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `entity_name` (VARCHAR 50, NOT NULL): 'JOB_CARD' | 'CALL' | 'COMPLAINT'
+- `brand_id` (UUIDv7, FK -> brands.id, NULLABLE)
+- `field_name` (VARCHAR 100, NOT NULL): JSONB property key
+- `field_label` (VARCHAR 150, NOT NULL): Display label in forms and tables
+- `field_type` (VARCHAR 30, NOT NULL): 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'DROPDOWN'
+- `is_required` (BOOLEAN, DEFAULT false)
+- `default_value` (VARCHAR 255, NULLABLE)
+- `options` (JSONB, NULLABLE): Allowed values for dropdown fields
+- `is_active` (BOOLEAN, DEFAULT true)
+- *Indexes*: `(tenant_id, entity_name, field_name)` UNIQUE.
+
+#### `service_types`
+Workshop service classification master dictionary.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `name` (VARCHAR 100, NOT NULL): e.g., 'Free Service 1', 'Periodic Maintenance', 'Running Repair'
+- `code` (VARCHAR 50, NOT NULL): e.g., 'FS1', 'PMS', 'RR'
+- `category` (VARCHAR 50, DEFAULT 'GENERAL')
+- `default_tat_hours` (INTEGER, DEFAULT 24)
+- `color` (VARCHAR 20, DEFAULT '#2563EB')
+- `icon` (VARCHAR 50, DEFAULT 'Wrench')
+- `is_active` (BOOLEAN, DEFAULT true)
+- `display_order` (INTEGER, DEFAULT 0)
+- `behaviour_flags` (JSONB, DEFAULT {})
+- *Indexes*: `(tenant_id, code)` UNIQUE.
+
+#### `import_mapping_templates`
+Saved file-to-table header mapping templates per OEM brand.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `brand_id` (UUIDv7, FK -> brands.id, NULLABLE)
+- `template_name` (VARCHAR 120, NOT NULL)
+- `file_type` (VARCHAR 20, DEFAULT 'CSV'): 'CSV' | 'XLSX'
+- `mapping` (JSONB, NOT NULL): Dictionary of target_field -> source_column
+- `is_default` (BOOLEAN, DEFAULT false)
+- *Indexes*: `(tenant_id, brand_id, template_name)`.
+
+#### `config_change_histories`
+Full revision audit log of system settings and rules with 1-click rollback support.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `config_type` (VARCHAR 80, NOT NULL): 'ROLE_MATRIX' | 'SETTINGS' | 'SLA_RULES' | 'QUESTIONNAIRE' | 'CUSTOM_FIELDS'
+- `entity_id` (VARCHAR 100, NULLABLE)
+- `version` (INTEGER, DEFAULT 1)
+- `previous_payload` (JSONB, NOT NULL)
+- `new_payload` (JSONB, NOT NULL)
+- `reason` (TEXT, NOT NULL): Mandatory justification for the change
+- `changed_by_id` (UUIDv7, FK -> users.id, NULLABLE)
+- `created_at` (TIMESTAMPTZ, DEFAULT now())
+- *Indexes*: `(tenant_id, config_type, version DESC)`.
 
 #### `users`
 User accounts for dealership personnel.
@@ -413,6 +570,61 @@ Tenant-level configuration parameters.
 - `config_key` (VARCHAR 80, NOT NULL)
 - `config_value` (JSONB, NOT NULL)
 - *Indexes*: `(tenant_id, config_key)` UNIQUE.
+
+---
+
+### 2.8 Automatic Equal Call Allocation & Attendance Overrides
+
+#### `attendance_overrides`
+Manual attendance overrides (PRESENT, ABSENT, ON_LEAVE) set by CRE Admin, overriding open login sessions.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `user_id` (UUIDv7, FK -> users.id, NOT NULL)
+- `attendance_date` (DATE, NOT NULL, INDEX)
+- `status` (VARCHAR 30, NOT NULL): 'PRESENT', 'ABSENT', 'ON_LEAVE'
+- `marked_by_id` (UUIDv7, FK -> users.id, NOT NULL)
+- `reason` (VARCHAR 255)
+- `created_at` (TIMESTAMPTZ, DEFAULT now())
+- `updated_at` (TIMESTAMPTZ, DEFAULT now())
+- *Indexes*: `(tenant_id, user_id, attendance_date)` UNIQUE.
+
+#### `allocation_runs`
+Auditable record of every automatic batch allocation or late-joiner rebalance run.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `import_batch_id` (UUIDv7, FK -> import_batches.id)
+- `run_type` (VARCHAR 40, NOT NULL): 'IMPORT_BATCH', 'REBALANCE', 'AUTO_LOGIN_ALLOCATION', 'MANUAL_REDISTRIBUTE'
+- `strategy` (VARCHAR 40, NOT NULL): 'EQUAL_PRESENT_CRE', 'ROUND_ROBIN', 'BY_BRANCH', 'MANUAL'
+- `present_cre_count` (INTEGER, NOT NULL)
+- `total_items` (INTEGER, NOT NULL)
+- `allocated_items` (INTEGER, NOT NULL)
+- `unallocated_items` (INTEGER, NOT NULL)
+- `started_by_id` (UUIDv7, FK -> users.id)
+- `undone_at` (TIMESTAMPTZ)
+- `undone_by_id` (UUIDv7, FK -> users.id)
+- `summary` (JSONB)
+- `created_at` (TIMESTAMPTZ, DEFAULT now())
+
+#### `allocation_assignments`
+Granular per-item assignment mapping for each allocation run, enabling 1-click rollback.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `run_id` (UUIDv7, FK -> allocation_runs.id, NOT NULL)
+- `queue_item_id` (UUIDv7, FK -> followup_queues.id, NOT NULL)
+- `from_user_id` (UUIDv7, FK -> users.id)
+- `to_user_id` (UUIDv7, FK -> users.id, NOT NULL)
+- `reason` (VARCHAR 60, DEFAULT 'IMPORT_EQUAL_SPLIT')
+- `created_at` (TIMESTAMPTZ, DEFAULT now())
+- *Indexes*: `(run_id, queue_item_id)` UNIQUE.
+
+#### `allocation_cursors`
+Persistent remainder pointer guaranteeing multi-batch mathematical fairness across imports.
+- `id` (UUIDv7, PK)
+- `tenant_id` (UUIDv7, FK -> tenants.id, NOT NULL)
+- `pool_key` (VARCHAR 80, NOT NULL, DEFAULT 'DEFAULT')
+- `last_cre_index` (INTEGER, NOT NULL, DEFAULT 0)
+- `last_allocated_at` (TIMESTAMPTZ, DEFAULT now())
+- *Indexes*: `(tenant_id, pool_key)` UNIQUE.
 
 ---
 

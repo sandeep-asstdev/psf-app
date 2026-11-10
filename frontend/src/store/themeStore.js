@@ -1,3 +1,20 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Zustand Theme Management Store (Light / Dark Mode).
+ * Stores the user's color scheme preference in localStorage and toggles the `dark` class
+ * on the root HTML document element.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Toggles between 'light' and 'dark' display modes.
+ * - Persists user theme choice in browser localStorage.
+ * - Applies or removes the `dark` class on the HTML `document.documentElement`.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Dark mode styles not applying to a component
+ *   -> Cause: Component missing Tailwind dark mode classes (e.g. `dark:bg-slate-900`).
+ *   -> What should you do: Add explicit `dark:` prefix variants to the component's JSX className.
+ * ============================================================================
+ */
 import { create } from 'zustand';
 
 export const useThemeStore = create((set, get) => ({

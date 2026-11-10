@@ -1,3 +1,25 @@
+"""
+================================================================================
+FILE PURPOSE: PostgreSQL Database Engine & Session Management.
+This file sets up the SQLAlchemy async database connection engine, creates the session
+factory (AsyncSessionLocal) for handling database queries asynchronously, and defines
+the Base class for all database models. It also provides the `get_db` dependency for FastAPI.
+
+KEY RESPONSIBILITIES:
+- Initializes SQLAlchemy async engine using asyncpg connection driver.
+- Provides `get_db()` async generator dependency to inject DB sessions into FastAPI routes.
+- Defines DeclarativeBase `Base` with shared UUID primary keys and timestamp mixins.
+- Provides `check_db_health()` to verify PostgreSQL availability during startup.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: asyncpg.exceptions.CannotConnectNowError or ConnectionRefusedError: [Errno 111] Connection refused
+  -> Cause: The PostgreSQL database container (psf_postgres) is stopped or not ready to accept connections.
+  -> What should you do: Run `docker ps` to verify psf_postgres is running. Run `docker logs psf_postgres` to check for DB errors. If stopped, run `docker compose up -d postgres`.
+- Error: TimeoutError: QueuePool limit of size 20 overflow 10 reached
+  -> Cause: Too many database connections opened without being closed (connection leak).
+  -> What should you do: Ensure every endpoint uses `Depends(get_db)` so FastAPI automatically closes sessions after the request completes.
+================================================================================
+"""
 import logging
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (

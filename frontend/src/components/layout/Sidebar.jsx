@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Left Navigation Sidebar with Permission Filtering.
+ * Renders the primary navigation menu links, filtering each link based on the user's role permissions,
+ * and displays the real-time active shift timer in the footer.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Filters menu items according to user permissions (`can`, `canAny`).
+ * - Highlights the active navigation route.
+ * - Displays active shift elapsed timer (e.g. 'Shift Active: 2 hours active').
+ * - Provides End Shift & Log Out button at the bottom.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: A menu link (e.g. Enterprise Admin) is missing for a user
+ *   -> Cause: The user's role lacks the required permission for that menu item.
+ *   -> What should you do: This is by design (RBAC). Super Admin has access to all links; CRE only sees calling screens.
+ * ============================================================================
+ */
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
@@ -13,26 +31,35 @@ import {
   LogOut,
   Clock,
   X,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
-  { to: '/psf', label: 'PSF Dashboard', icon: PhoneCall, badge: '14' },
-  { to: '/happiness', label: 'Happiness Calling', icon: HeartHandshake, badge: '6' },
-  { to: '/complaints', label: 'Complaints', icon: AlertOctagon, badge: '3' },
-  { to: '/advisor', label: 'Advisor Followup', icon: Wrench },
+  { to: '/psf', label: 'PSF Dashboard', icon: PhoneCall, badge: '14', permission: 'call.view' },
+  { to: '/happiness', label: 'Happiness Calling', icon: HeartHandshake, badge: '6', permission: 'call.view' },
+  { to: '/complaints', label: 'Complaints', icon: AlertOctagon, badge: '3', permission: 'complaint.view' },
+  { to: '/advisor', label: 'Advisor Followup', icon: Wrench, permission: 'advisor.action' },
   { to: '/attendance', label: 'Shift Attendance', icon: Clock },
-  { to: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
-  { to: '/import', label: 'Data Import', icon: UploadCloud },
-  { to: '/users', label: 'User Management', icon: Users },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/reports', label: 'Reports & Analytics', icon: BarChart3, permission: 'report.view' },
+  { to: '/import', label: 'Data Import', icon: UploadCloud, permission: 'jobcard.import' },
+  { to: '/users', label: 'User Management', icon: Users, permissions: ['user.create', 'user.edit'] },
+  { to: '/admin-console', label: 'Enterprise Admin', icon: ShieldCheck, permissions: ['role.manage', 'permission.manage', 'brand.manage', 'data.correct'] },
+  { to: '/settings', label: 'Settings', icon: Settings, permissions: ['brand.manage', 'settings.manage', 'config.view'] },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, logout } = useAuthStore();
+  const { user, logout, can, canAny } = useAuthStore();
   const [elapsedTime, setElapsedTime] = useState('');
+
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (user?.is_super_admin) return true;
+    if (item.permission) return can(item.permission);
+    if (item.permissions) return canAny(...item.permissions);
+    return true;
+  });
 
   useEffect(() => {
     if (!user?.active_shift_login) {
@@ -83,7 +110,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         {/* Navigation Links */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink

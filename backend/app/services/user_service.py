@@ -1,3 +1,20 @@
+"""
+================================================================================
+FILE PURPOSE: User Accounts & Role Management Service.
+Provides business logic for creating personnel user accounts, updating passwords,
+assigning roles, and configuring explicit branch/brand data scopes.
+
+KEY RESPONSIBILITIES:
+- Creates new dealership personnel users with hashed passwords (`create_user`).
+- Updates user profiles, active status, and role assignments (`update_user`).
+- Assigns explicit branch or brand access scopes (`set_user_scopes`).
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: User cannot log in after creation
+  -> Cause: Password was hashed incorrectly or user was marked inactive.
+  -> What should you do: Verify is_active is True and test logging in with the chosen credentials.
+================================================================================
+"""
 import uuid
 from typing import Optional, List, Dict, Any, Tuple
 from sqlalchemy import select, func, and_

@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Top-Level Application Router & Toast Notification Shell.
+ * Configures all client-side page routes using React Router, wraps authenticated pages
+ * inside ProtectedRoute and AppLayout, and mounts the global Toast notification container.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Defines application URL routing hierarchy (Home, PSF, Import, Complaints, Admin, Users, Settings).
+ * - Guards private routes using `<ProtectedRoute />`.
+ * - Mounts `<LiveNotificationListener />` for real-time WebSocket toast alerts.
+ * - Configures `<Toaster />` for notification banners.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: User navigates to a URL and sees nothing or 404
+ *   -> Cause: Route path was not added to the `<Routes>` list in this file.
+ *   -> What should you do: Add the `<Route path='/your-path' element={<YourComponent />} />` inside `<Routes>`.
+ * ============================================================================
+ */
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useThemeStore } from './store/themeStore';
@@ -7,6 +25,15 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoginPage from './pages/auth/LoginPage';
 import AttendanceLogsPage from './pages/auth/AttendanceLogsPage';
 import UserManagementPage from './pages/users/UserManagementPage';
+import SettingsPage from './pages/settings/SettingsPage';
+import DataImportPage from './pages/imports/DataImportPage';
+import PsfDashboardPage from './pages/psf/PsfDashboardPage';
+import ComplaintManagementPage from './pages/complaints/ComplaintManagementPage';
+import HappinessCallingPage from './pages/happiness/HappinessCallingPage';
+import AdvisorPortalPage from './pages/advisors/AdvisorPortalPage';
+import ReportsDashboardPage from './pages/reports/ReportsDashboardPage';
+import AdminConsolePage from './pages/admin/AdminConsolePage';
+import LiveNotificationListener from './components/common/LiveNotificationListener';
 import HomePage from './pages/HomePage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -32,6 +59,7 @@ export default function App() {
         path="/*"
         element={
           <ProtectedRoute>
+            <LiveNotificationListener />
             <AppLayout>
               <Routes>
                 <Route path="/" element={<HomePage />} />
@@ -39,81 +67,75 @@ export default function App() {
                 <Route
                   path="/users"
                   element={
-                    <ProtectedRoute allowedRoles={['SUPER_ADMIN', 'DEALER_ADMIN', 'BRAND_MANAGER', 'BRANCH_MANAGER', 'AUDITOR']}>
+                    <ProtectedRoute permissionAny={['user.create', 'user.edit']}>
                       <UserManagementPage />
                     </ProtectedRoute>
                   }
                 />
 
-                {/* Workstation Routes for upcoming phases */}
+                {/* PSF Calling Console */}
                 <Route
                   path="/psf"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 5"
-                      title="PSF Dashboard & Call Console"
-                      description="Main CRE Workspace with grouped job card widgets, drill-down tables, and split-layout call console."
-                    />
+                    <ProtectedRoute permission="call.view">
+                      <PsfDashboardPage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/happiness"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 6"
-                      title="Happiness Calling"
-                      description="15-day / 30-day post-delivery calling queues, satisfaction tracking, and advisor allocations."
-                    />
+                    <ProtectedRoute permission="call.view">
+                      <HappinessCallingPage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/complaints"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 6"
-                      title="Complaint Management"
-                      description="Full SLA lifecycle: Open, Assigned, In Progress, Resolved, Reconfirmation & Closure audit trail."
-                    />
+                    <ProtectedRoute permission="complaint.view">
+                      <ComplaintManagementPage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/advisor"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 6"
-                      title="Service Advisor Follow-up"
-                      description="Restricted portal for Service Advisors to review dissatisfied customer VOC and input corrective remarks."
-                    />
+                    <ProtectedRoute permission="advisor.action">
+                      <AdvisorPortalPage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/reports"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 7"
-                      title="Reports & Analytics Dashboard"
-                      description="CSAT/NPS trends, CRE productivity, complaint turnaround analysis, advisor scorecards, and Excel/PDF export."
-                    />
+                    <ProtectedRoute permission="report.view">
+                      <ReportsDashboardPage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/import"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 4"
-                      title="DMS Data Import & Allocation"
-                      description="Excel/CSV job card upload, column mapping templates, duplicate detection, and round-robin auto-allocation."
-                    />
+                    <ProtectedRoute permission="jobcard.import">
+                      <DataImportPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin-console"
+                  element={
+                    <ProtectedRoute permissionAny={['role.manage', 'permission.manage', 'brand.manage', 'data.correct']}>
+                      <AdminConsolePage />
+                    </ProtectedRoute>
                   }
                 />
                 <Route
                   path="/settings"
                   element={
-                    <PlaceholderPage
-                      phase="Phase 3"
-                      title="Masters & Questionnaire Builder"
-                      description="Tenant settings, brand logos, branch masters, and dynamic brand questionnaire engine."
-                    />
+                    <ProtectedRoute permissionAny={['brand.manage', 'settings.manage', 'config.view']}>
+                      <SettingsPage />
+                    </ProtectedRoute>
                   }
                 />
 

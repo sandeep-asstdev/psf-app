@@ -1,3 +1,19 @@
+"""
+================================================================================
+FILE PURPOSE: Customer Records & Vehicle Database Models.
+Defines database tables for vehicle owners (Customer) and the vehicles they own (Vehicle).
+Stores masked and encrypted contact numbers compliant with data privacy regulations.
+
+KEY RESPONSIBILITIES:
+- Customer: customer name, encrypted phone number, blind phone index hash, email, city.
+- Vehicle: registration number (Reg No), VIN number, model, variant, engine number, sale date.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: IntegrityError: duplicate key violates 'uq_vehicle_vin'
+  -> Cause: A vehicle with the same 17-character VIN already exists.
+  -> What should you do: Use existing vehicle record or verify duplicate handling options during DMS import.
+================================================================================
+"""
 import uuid
 from datetime import datetime, date
 from typing import Optional, List
@@ -59,3 +75,4 @@ class Vehicle(Base):
         Index("ix_vehicles_tenant_reg_no", "tenant_id", "reg_no"),
         Index("ix_vehicles_tenant_vin", "tenant_id", "vin"),
     )
+

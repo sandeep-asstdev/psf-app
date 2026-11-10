@@ -1,3 +1,21 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Personnel User Roster & Scoping Management Page.
+ * Allows Dealership Admins to view all staff accounts, create new employees, assign roles,
+ * activate or deactivate accounts, and configure branch access restrictions.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Fetches all dealership personnel accounts from `GET /api/v1/users`.
+ * - Provides user creation modal with role assignment dropdown.
+ * - Allows toggling active/inactive status and resetting passwords.
+ * - Allows assigning explicit branch or brand access scopes.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Cannot create user: 'Email already exists'
+ *   -> Cause: Another staff account already uses this email address.
+ *   -> What should you do: Use a unique work email address for the new user account.
+ * ============================================================================
+ */
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -414,3 +432,4 @@ export default function UserManagementPage() {
     </div>
   );
 }
+

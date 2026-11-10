@@ -57,3 +57,7 @@ pgdata/
 redisdata/
 miniodata/
 
+# Sample data & PII
+sample_data/
+*.csv
+

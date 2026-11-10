@@ -1,3 +1,21 @@
+"""
+================================================================================
+FILE PURPOSE: User Management & Role Assignment Endpoints.
+Provides endpoints for listing personnel users, creating new accounts, updating roles,
+activating / deactivating users, and setting branch access scopes.
+
+KEY RESPONSIBILITIES:
+- Lists dealership personnel users with filters (`GET /users`).
+- Creates new user account (`POST /users`).
+- Updates user profile or role (`PUT /users/{id}`).
+- Configures explicit branch or brand user scopes (`PUT /users/{id}/scopes`).
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: HTTP 400 Bad Request: 'Email already registered'
+  -> Cause: A user with this email address already exists.
+  -> What should you do: Use a unique email address or update the existing user.
+================================================================================
+"""
 import uuid
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
@@ -8,7 +26,7 @@ import pandas as pd
 import io
 from app.core.database import get_db
 from app.core.crypto import decrypt_phone
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require, require_any, PermissionKey
 from app.models.auth import User, Role, UserScope
 from app.schemas.user import (
     UserCreateRequest,
@@ -39,7 +57,7 @@ async def get_users(
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN", "BRAND_MANAGER", "BRANCH_MANAGER", "AUDITOR"])),
+    current_user: User = Depends(require_any(PermissionKey.USER_CREATE, PermissionKey.USER_EDIT)),
     db: AsyncSession = Depends(get_db),
 ):
     """List users in tenant with filters and pagination."""
@@ -85,7 +103,7 @@ async def get_users(
 @router.post("", response_model=UserDetailResponse, status_code=status.HTTP_201_CREATED)
 async def create_new_user(
     payload: UserCreateRequest,
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN", "BRAND_MANAGER"])),
+    current_user: User = Depends(require(PermissionKey.USER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new user within the tenant."""
@@ -111,7 +129,7 @@ async def create_new_user(
 @router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user_details(
     user_id: uuid.UUID,
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN", "BRAND_MANAGER", "BRANCH_MANAGER", "AUDITOR"])),
+    current_user: User = Depends(require_any(PermissionKey.USER_CREATE, PermissionKey.USER_EDIT)),
     db: AsyncSession = Depends(get_db),
 ):
     """Get single user profile and assigned scopes."""
@@ -151,7 +169,7 @@ async def get_user_details(
 async def update_user_details(
     user_id: uuid.UUID,
     payload: UserUpdateRequest,
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN", "BRAND_MANAGER"])),
+    current_user: User = Depends(require(PermissionKey.USER_EDIT)),
     db: AsyncSession = Depends(get_db),
 ):
     """Update user information and brand/branch scopes."""
@@ -167,7 +185,7 @@ async def update_user_details(
 async def reset_password(
     user_id: uuid.UUID,
     payload: PasswordResetRequest,
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN"])),
+    current_user: User = Depends(require(PermissionKey.USER_EDIT)),
     db: AsyncSession = Depends(get_db),
 ):
     """Reset password for a user account."""
@@ -185,7 +203,7 @@ async def reset_password(
 @router.post("/bulk-import")
 async def bulk_import_users(
     file: UploadFile = File(...),
-    current_user: User = Depends(require_role(["SUPER_ADMIN", "DEALER_ADMIN"])),
+    current_user: User = Depends(require(PermissionKey.USER_CREATE)),
     db: AsyncSession = Depends(get_db),
 ):
     """Bulk import dealership users from CSV or Excel file."""
@@ -258,3 +276,51 @@ async def bulk_import_users(
         "failed_count": len(errors),
         "errors": errors[:50],
     }
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_200_OK)
+async def delete_user_account(
+    user_id: uuid.UUID,
+    current_user: User = Depends(require(PermissionKey.USER_DELETE)),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Soft-delete or deactivate a user account with strict lockout protection:
+    Cannot delete own account or last remaining Super Admin.
+    """
+    if current_user.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lockout protection: You cannot delete your own user account.",
+        )
+
+    target_user = await get_user_by_id(db=db, user_id=user_id, tenant_id=current_user.tenant_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Check if target is a super admin
+    if target_user.role and target_user.role.name == "SUPER_ADMIN":
+        # Count remaining active super admins
+        sa_stmt = (
+            select(User)
+            .join(Role, User.role_id == Role.id)
+            .where(
+                Role.name == "SUPER_ADMIN",
+                User.is_active == True,
+                User.is_deleted == False,
+                User.id != user_id,
+            )
+        )
+        remaining_sa = (await db.execute(sa_stmt)).scalars().all()
+        if not remaining_sa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Lockout protection: Cannot delete the last active Super Admin in the system.",
+            )
+
+    target_user.is_active = False
+    target_user.is_deleted = True
+    await db.commit()
+
+    return {"message": f"User '{target_user.email}' deactivated successfully."}
+

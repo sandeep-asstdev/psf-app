@@ -1,3 +1,20 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Shift Attendance & Daily Login Logs Page.
+ * Displays the chronological history of daily login and logout timestamps for dealership personnel,
+ * showing shift start, shift end, duration, IP address, and attendance status.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Fetches login attendance logs from `GET /api/v1/auth/attendance/logs`.
+ * - Displays shift status (Active / Completed) and active shift duration.
+ * - Allows CRE Admin to see who punched in today and is eligible for call allocation.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Shift shows 'Active' from 2 days ago
+ *   -> Cause: User forgot to click 'End Shift / Log Out' at the end of their shift.
+ *   -> What should you do: Click 'End Shift & Log Out' in the bottom left sidebar, or let the automatic end-of-day cleanup run.
+ * ============================================================================
+ */
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -192,3 +209,4 @@ export default function AttendanceLogsPage() {
     </div>
   );
 }
+

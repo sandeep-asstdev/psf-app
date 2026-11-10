@@ -1,3 +1,25 @@
+"""
+================================================================================
+FILE PURPOSE: FastAPI Route Dependencies & Security Gates.
+Provides reusable dependency injection functions for FastAPI endpoints:
+retrieving current database session (`get_db`), extracting authenticated user from JWT token
+(`get_current_user`), verifying active account status, and enforcing permission checks (`require`).
+
+KEY RESPONSIBILITIES:
+- Injects active asynchronous database sessions (`get_db`).
+- Validates Bearer JWT access tokens and fetches the requesting User from database (`get_current_user`).
+- Enforces role permission checks (`require(PermissionKey.CALL_VIEW)`).
+- Enforces multi-permission checks (`require_any`, `require_all`).
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: HTTP 401 Unauthorized: 'Not authenticated' or 'Invalid token'
+  -> Cause: Missing or expired Authorization Bearer token header in the HTTP request.
+  -> What should you do: Log in again at /login or verify the frontend is passing `Authorization: Bearer <token>` in headers.
+- Error: HTTP 403 Forbidden: 'Insufficient permissions'
+  -> Cause: The user's role does not possess the required permission key.
+  -> What should you do: Check the user's role permissions in the Admin Console Role Matrix.
+================================================================================
+"""
 import uuid
 import logging
 from typing import Optional, List, Callable
@@ -46,8 +68,8 @@ async def get_current_user(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
         # Check blacklist
-        jti = payload.get("jti", user_id_str)
-        if await is_token_blacklisted(jti):
+        jti = payload.get("jti")
+        if jti and await is_token_blacklisted(jti):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked/logged out")
 
         user_id = uuid.UUID(user_id_str)
@@ -85,6 +107,15 @@ async def get_current_user(
     return user
 
 
+from app.core.permissions import (
+    require,
+    require_any,
+    get_user_effective_permissions,
+    apply_data_scope,
+    PermissionKey,
+    DataScope,
+)
+
 async def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
@@ -94,7 +125,7 @@ async def get_current_active_user(
 
 
 def require_role(allowed_roles: List[str]) -> Callable:
-    """Dependency factory restricting endpoints to specific role names."""
+    """Legacy role checker retained for backward compatibility; prefer data-driven require(PermissionKey)."""
     async def role_checker(current_user: User = Depends(get_current_active_user)) -> User:
         user_role = current_user.role.name.upper() if current_user.role else ""
         if user_role == "SUPER_ADMIN" or user_role in [r.upper() for r in allowed_roles]:
@@ -122,3 +153,4 @@ def require_permissions(required_permissions: List[str]) -> Callable:
             )
         return current_user
     return permission_checker
+

@@ -1,3 +1,20 @@
+"""
+================================================================================
+FILE PURPOSE: User Profile, Role Management & Scope Schemas.
+Defines Pydantic models for creating users, updating profiles, assigning roles,
+and configuring branch/brand data access restrictions.
+
+KEY RESPONSIBILITIES:
+- Validates new user creation (full name, email, password strength, role).
+- Validates user profile updates and status changes (active / inactive).
+- Validates explicit branch/brand user scope assignments.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: ValidationError: password must be at least 8 characters
+  -> Cause: Weak password provided during user creation.
+  -> What should you do: Provide a strong password with at least 8 characters including uppercase, lowercase, and numbers.
+================================================================================
+"""
 import uuid
 from datetime import datetime
 from typing import Optional, List
@@ -34,8 +51,12 @@ class RoleSchema(BaseModel):
     id: uuid.UUID
     name: str
     description: Optional[str] = None
-    permissions: List[str]
-    is_system: bool
+    level: str = "L3"
+    permissions: List[str] = []
+    field_rules: Optional[dict] = None
+    dashboard_config: Optional[dict] = None
+    is_active: bool = True
+    is_system: bool = False
 
     class Config:
         from_attributes = True
@@ -75,3 +96,4 @@ class UserDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+

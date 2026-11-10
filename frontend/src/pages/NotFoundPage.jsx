@@ -1,3 +1,19 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: 404 Not Found Fallback Page.
+ * Displayed whenever a user navigates to an invalid or unmapped URL path.
+ * Shows a friendly error message with a button to safely return back to the Home page.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Catches unmatched router paths in React Router (`path='*'`).
+ * - Provides a 1-click button to navigate safely back to Home (`/`).
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: User repeatedly lands on 404 page when clicking menu links
+ *   -> Cause: The clicked route path does not match any Route definition in App.jsx.
+ *   -> What should you do: Verify the URL path in `frontend/src/components/layout/Sidebar.jsx` matches `App.jsx`.
+ * ============================================================================
+ */
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Home } from 'lucide-react';

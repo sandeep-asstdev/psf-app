@@ -1,14 +1,51 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Top Navigation & Header Bar.
+ * Displays dealership branding, global search input, light/dark theme toggle,
+ * logged-in user role badge, and quick logout button.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Displays dealership logo and name.
+ * - Provides quick search bar for Job Cards, Customers, and VIN numbers.
+ * - Theme switch button (Sun / Moon) calling ThemeStore.
+ * - Displays logged-in user name and role badge (e.g. Super Admin, CRE).
+ * - Provides End Shift & Log Out button.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: User avatar shows 'Guest'
+ *   -> Cause: User profile failed to load into AuthStore.
+ *   -> What should you do: Refresh the page or log in again to populate user details.
+ * ============================================================================
+ */
 import React from 'react';
-import { Sun, Moon, Search, Bell, Menu, LogOut } from 'lucide-react';
+import { Sun, Moon, Search, Bell, Menu, LogOut, Eye, AlertCircle } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 
 export default function Header({ onToggleSidebar }) {
   const { resolvedTheme, toggleTheme } = useThemeStore();
-  const { user, logout } = useAuthStore();
+  const { user, logout, isImpersonating, exitImpersonation } = useAuthStore();
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-background-surface px-4 shadow-subtle transition-colors lg:px-6">
+    <>
+      {isImpersonating && (
+        <div className="sticky top-0 z-40 flex items-center justify-between bg-amber-500 px-4 py-1.5 text-xs font-bold text-amber-950 shadow-md">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-4 w-4 shrink-0 animate-pulse" />
+            <span>
+              SIMULATION MODE: Viewing system as <span className="underline">{user?.full_name}</span> ({user?.role_name || user?.role}). All actions are audited.
+            </span>
+          </div>
+          <button
+            onClick={exitImpersonation}
+            className="rounded bg-amber-950 px-2.5 py-0.5 text-[11px] font-bold text-amber-100 hover:bg-black transition-colors"
+          >
+            Exit Simulation
+          </button>
+        </div>
+      )}
+
+      <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border bg-background-surface px-4 shadow-subtle transition-colors lg:px-6">
       {/* Left: Mobile Menu & Branding */}
       <div className="flex items-center space-x-3">
         <button
@@ -88,5 +125,6 @@ export default function Header({ onToggleSidebar }) {
         </div>
       </div>
     </header>
+    </>
   );
 }

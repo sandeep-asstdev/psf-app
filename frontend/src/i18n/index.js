@@ -1,3 +1,18 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Internationalization & Localization Configuration.
+ * Configures multi-language translation strings and formatting helpers.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Provides language dictionary mapping.
+ * - Supports localized date and currency formatting.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Translation key shows instead of text
+ *   -> Cause: The translation key was not defined in the active language dictionary.
+ *   -> What should you do: Add the translation string to the dictionary.
+ * ============================================================================
+ */
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 

@@ -1,3 +1,18 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Feature Placeholder Page.
+ * Displays a clean 'Under Development' screen for modules scheduled for future phases.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Provides a placeholder view with breadcrumbs and feature explanation.
+ * - Prevents broken page crashes for future menu items.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Feature shows placeholder instead of real screen
+ *   -> Cause: The route is pointed to PlaceholderPage instead of the finished page component.
+ *   -> What should you do: Update the route import in `App.jsx` to point to the actual page component.
+ * ============================================================================
+ */
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';

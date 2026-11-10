@@ -1,185 +1,182 @@
-# Legacy Google AppSheet to PSF SaaS Platform Column Mapping
+# Comprehensive Legacy 120-Column AppSheet Mapping to PSF SaaS Architecture
 
-This document provides an exhaustive, column-by-column migration mapping from the legacy flat Google AppSheet spreadsheet (~130 columns) to the new normalized PostgreSQL database architecture and the Dynamic Questionnaire Engine.
-
----
-
-## 1. Architectural Transformation Summary
-
-In the legacy Google AppSheet setup, every question from every automotive brand (Hyundai, MG, Ather, etc.) was appended as a flat spreadsheet column. This resulted in:
-1. Massive horizontal sparsity (~80% of question columns were empty for any given record).
-2. Schema lock-in: modifying or adding a question required editing production table columns and broken AppSheet formula views.
-3. Hardcoded formula columns for computing CSAT, NPS, and string labels.
-
-**Modern Architecture Solution**:
-- **Normalized Master & Transactional Data**: Core customer, vehicle, branch, job card, and call lifecycle fields are stored in strongly typed, partitioned PostgreSQL tables (`job_cards`, `calls`, `complaints`, etc.).
-- **Dynamic Questionnaire Engine**: Brand questions are defined in `questionnaires` and `questions` tables. Captured answers are stored in `survey_responses.answers` as JSONB with GIN indexing and denormalized scores (`csat_score`, `nps_score`, `nps_category`).
-- **Encrypted Phone Numbers**: All contact numbers are encrypted with AES/Fernet at rest, with indexed HMAC-SHA256 hashes (`phone_hash`) for O(1) searches.
+This document maps all 120 columns from the legacy dealership AppSheet Google Sheet (`sample_data - Sheet1.csv`) into the modern PostgreSQL database architecture and Dynamic Questionnaire Engine.
 
 ---
 
-## 2. Exhaustive Column Mapping Table
+## 1. Dropped Legacy Columns & Rationale
 
-### 2.1 DMS Ingestion & Vehicle / Customer Metadata
+The following columns from the legacy spreadsheet are explicitly **dropped** during ingestion and not persisted to database tables:
 
-| Legacy AppSheet Column Header | Target Table | Target Field | Data Type | Notes / Transformation |
-| :--- | :--- | :--- | :--- | :--- |
-| `Job Card No` / `JC_NO` | `job_cards` | `job_card_no` | `VARCHAR(60)` | Unique per branch |
-| `Job Card Date` / `JC_DATE` | `job_cards` | `job_card_date` | `DATE` | Standardized ISO-8601 |
-| `Customer Name` | `customers` | `name` | `VARCHAR(150)` | Title-cased |
-| `Contact No` / `Mobile` | `customers` | `phone` & `phone_hash` | `VARCHAR(255)` | Encrypted at rest; deterministic hash generated |
-| `Alternate Mobile` | `customers` | `alt_phone` | `VARCHAR(255)` | Encrypted at rest |
-| `Customer Email` | `customers` | `email` | `VARCHAR(150)` | Normalized lowercase |
-| `Customer Address` | `customers` | `address` | `VARCHAR(500)` | Address line |
-| `City` | `customers` | `city` | `VARCHAR(100)` | Dealership city |
-| `Registration No` / `Reg_No` | `vehicles` | `reg_no` | `VARCHAR(30)` | Cleaned alphanumeric (e.g. DL01AB1234) |
-| `VIN` / `Chassis No` | `vehicles` | `vin` | `VARCHAR(50)` | Standard 17-char VIN format |
-| `Model` | `vehicles` | `model` | `VARCHAR(100)` | Vehicle model (e.g. Creta, ZS EV) |
-| `Variant` / `Fuel Type` | `vehicles` | `variant` / `fuel_type`| `VARCHAR(100)` | EV, Petrol, Diesel, CNG |
-| `Delivery Date` | `vehicles` | `delivery_date` | `DATE` | Original vehicle purchase date |
-| `Service Advisor Name` | `job_cards` | `service_advisor_name`| `VARCHAR(120)` | Stored as text + linked to `service_advisor_id` |
-| `Technician Name` | `job_cards` | `technician_name` | `VARCHAR(120)` | Assigned bay technician |
-| `Service Type` | `job_cards` | `service_type` | `VARCHAR(80)` | Paid, Free 1/2/3, Running Repair |
-| `Total Bill Amount` / `Amount`| `job_cards` | `total_amount` | `NUMERIC(12,2)` | Invoiced total |
-| `Odometer Reading` / `KMs` | `job_cards` | `odometer_reading` | `INTEGER` | Current vehicle mileage |
-| `Promised Delivery Time` | `job_cards` | `promised_delivery_time`| `TIMESTAMPTZ`| Promised handover slot |
-| `Actual Delivery Time` | `job_cards` | `actual_delivery_time`| `TIMESTAMPTZ` | Actual billing/gate pass release |
-| `Branch Code` / `Branch Name` | `branches` | `id` (FK in `job_cards`) | `UUIDv7` | Resolved against tenant branch master |
-| `Brand` (Hyundai, MG, Ather) | `brands` | `id` (FK in `job_cards`) | `UUIDv7` | Resolved against tenant brand master |
-| `DMS Upload Batch ID` | `job_cards` | `import_batch_id` | `UUIDv7` | Links to `import_batches.id` |
-| `Uploaded By` | `job_cards` | `uploaded_by_id` | `UUIDv7` | User who ran the Excel import |
-
----
-
-### 2.2 Calling Queue & Call Execution
-
-| Legacy AppSheet Column Header | Target Table | Target Field | Data Type | Notes / Transformation |
-| :--- | :--- | :--- | :--- | :--- |
-| `Queue Type` (PSF/Happiness/etc)| `followup_queues`| `queue_type` | `VARCHAR(40)` | Enum: PSF, TNPS, HAPPINESS, RECONFIRMATION |
-| `Assigned CRE` | `followup_queues`| `assigned_to_id` | `UUIDv7` | User ID of caller |
-| `Queue Due Date` | `followup_queues`| `due_at` | `TIMESTAMPTZ` | Target calling window (e.g. T+2 days) |
-| `Call Status` | `calls` | `call_status` | `VARCHAR(50)` | Connected, Not Connected, Busy, Switched Off... |
-| `Case Status` | `calls` | `case_status` | `VARCHAR(50)` | Satisfied, Dissatisfied, Complaint Registered... |
-| `Customer VOC` / `Remarks` | `calls` | `voc` | `TEXT` | Verbatim customer feedback |
-| `Call Attempt Count` | `followup_queues`| `attempts` | `INTEGER` | Incremented automatically on each call log |
-| `Contacted Flag` | `followup_queues`| `contacted_count`| `INTEGER` | Incremented when call_status == 'Connected' |
-| `Last Call Timestamp` | `followup_queues`| `last_attempt_at`| `TIMESTAMPTZ` | Timestamp of latest dial |
-| `Next Followup Date/Time` | `followup_queues`| `next_followup_at`| `TIMESTAMPTZ` | Scheduled callback slot |
-| `Call Duration (Seconds)` | `calls` | `duration_seconds`| `INTEGER` | Clocked via Call Console timer |
-| `Called Phone Number` | `calls` | `phone_dialed` | `VARCHAR(255)` | Encrypted at rest |
-| `Alt Contact Used Flag` | `calls` | `alt_contact_used`| `BOOLEAN` | True if alternate phone was dialed |
-| `Call Recording URL` | `calls` | `recording_url` | `VARCHAR(500)` | MinIO/S3 audio file path |
-
----
-
-### 2.3 Brand-Specific Questionnaire Questions (Dynamic JSONB)
-
-All brand-specific flat columns are transformed into versioned records in `questions` and collected in `survey_responses.answers` (JSONB):
-
-#### Hyundai PSF Survey Columns:
-| Legacy AppSheet Column | Questionnaire Key | Target Question Type | Options / Scale |
-| :--- | :--- | :--- | :--- |
-| `H_Pickup_Drop_Offered` | `hyundai_pickup_drop_offered` | `yes_no_na` | Yes, No, N/A |
-| `H_Pickup_Person_Courtesy` | `hyundai_pickup_courtesy` | `rating_5` | 1 (Poor) to 5 (Excellent) |
-| `H_Tablet_Repair_Order` | `hyundai_tablet_repair_order` | `yes_no` | Yes, No |
-| `H_Maintenance_History_Checked` | `hyundai_history_checked` | `yes_no` | Yes, No |
-| `H_Inspection_In_Front` | `hyundai_inspection_in_front` | `yes_no` | Yes, No |
-| `H_Road_Test_Before_Repair` | `hyundai_road_test_before` | `yes_no` | Yes, No |
-| `H_WhatsApp_Updates_Received` | `hyundai_whatsapp_updates` | `yes_no` | Yes, No |
-| `H_Water_Bottle_Offered` | `hyundai_water_bottle_offered`| `yes_no` | Yes, No |
-| `H_Parts_Explained_Beforehand` | `hyundai_parts_explained` | `yes_no` | Yes, No |
-| `H_Same_Day_Delivery_Achieved` | `hyundai_sameday_delivery` | `yes_no_na` | Yes, No, N/A |
-| `H_Advisor_Politeness` | `hyundai_advisor_politeness` | `rating_5` | 1 to 5 stars |
-| `H_Restroom_Cleanliness` | `hyundai_restroom_cleanliness`| `rating_5` | 1 to 5 stars |
-| `H_Customer_Area_Ambience` | `hyundai_customer_ambience` | `rating_5` | 1 to 5 stars |
-| `H_Facility_Cleanliness` | `hyundai_facility_cleanliness`| `rating_5` | 1 to 5 stars |
-| `H_Repair_Charges_Reasonable` | `hyundai_repair_charges_reasonable` | `yes_no` | Yes, No |
-| `H_Charges_Explained_At_Delivery`| `hyundai_charges_explained_delivery`| `yes_no` | Yes, No |
-| `H_Work_Quality` | `hyundai_work_quality` | `rating_5` | 1 to 5 stars |
-| `H_Denting_Painting_Quality` | `hyundai_denting_painting_quality` | `rating_5` | 1 to 5 stars (conditional) |
-| `H_Car_Cleanliness_Washing` | `hyundai_car_cleanliness` | `rating_5` | 1 to 5 stars |
-| `H_Advisor_Explanation_Delivery` | `hyundai_advisor_explanation_delivery`| `yes_no` | Yes, No |
-| `H_Road_Test_After_Repair` | `hyundai_road_test_after` | `yes_no` | Yes, No |
-| `H_Walkout_Greeting_Enjoy_Driving`| `hyundai_walkout_greeting` | `yes_no` | Yes, No |
-| `H_Promised_Delivery_Date_Met` | `hyundai_promised_delivery_met`| `yes_no` | Yes, No |
-| `H_Contacted_After_Delivery` | `hyundai_contacted_after_delivery` | `yes_no` | Yes, No |
-| `H_Insurance_Claim_Support` | `hyundai_insurance_claim_support` | `rating_5` | 1 to 5 stars (conditional) |
-| `H_Dealer_Staff_Response` | `hyundai_dealer_staff_response` | `rating_5` | 1 to 5 stars |
-| `H_Recommend_Hyundai_Dealer` | `hyundai_recommend_dealer` | `nps_10` | 0 (Not likely) to 10 (Very likely) |
-| `H_Overall_Experience` | `hyundai_overall_experience` | `rating_5` | 1 (Poor) to 5 (Delighted) |
-
-#### MG Motors PSF & TNPS Survey Columns:
-| Legacy AppSheet Column | Questionnaire Key | Target Question Type | Options / Scale |
-| :--- | :--- | :--- | :--- |
-| `MG_Recommend_Brand_NPS` | `mg_recommend_brand_nps` | `nps_10` | 0–10 Net Promoter score |
-| `MG_Recommend_Workshop_NPS` | `mg_recommend_workshop_nps`| `nps_10` | 0–10 Net Promoter score |
-| `MG_Handover_Delivery_Rating` | `mg_handover_rating` | `rating_5` | 1–5 stars |
-| `MG_Handover_Improvement_Reason`| `mg_handover_reasons` | `text` | Shown if handover <= 3 |
-| `MG_Advisor_Rating` | `mg_advisor_rating` | `rating_5` | 1–5 stars |
-| `MG_Advisor_Rating_Reason` | `mg_advisor_reasons` | `text` | Shown if advisor <= 3 |
-| `MG_Work_Charges_Explained_Prior`| `mg_work_charges_explained_before` | `yes_no` | Yes, No |
-| `MG_Jobs_Resolved_First_Attempt` | `mg_first_attempt_resolution` | `yes_no` | Yes, No |
-| `MG_First_Attempt_Reasons` | `mg_first_attempt_reasons` | `text` | Shown if resolved == No |
-| `MG_Improvement_Areas` | `mg_improvement_areas` | `multi_select` | Cleanliness, Time, Billing, Quality |
-
-#### Ather Energy PSF Survey Columns:
-| Legacy AppSheet Column | Questionnaire Key | Target Question Type | Options / Scale |
-| :--- | :--- | :--- | :--- |
-| `Ather_Jobs_Satisfaction` | `ather_jobs_satisfaction` | `yes_no` | Yes, No |
-| `Ather_Charging_Status_Handover`| `ather_charging_status` | `rating_5` | Min 80% State of Charge |
-| `Ather_OTA_Update_Explained` | `ather_ota_explained` | `yes_no_na` | Yes, No, N/A |
-| `Ather_Gate_Pass_Doc_Upload` | `ather_doc_uploaded` | `text` | S3 document attachment reference |
-| `Ather_Workshop_Experience` | `ather_workshop_experience` | `nps_10` | 0–10 scale |
-
-#### Reconfirmation Survey Columns:
-| Legacy AppSheet Column | Target Table / Key | Target Field / Question Key | Notes |
-| :--- | :--- | :--- | :--- |
-| `Reconf_Conducted_Date` | `reconfirmations` | `reconfirmation_date` | Date of verification call |
-| `Reconf_Done_By` | `reconfirmations` | `conducted_by_id` | User FK |
-| `Reconf_Call_Status` | `reconfirmations` | `call_status` | Connected, Callback... |
-| `Reconf_Overall_Experience` | `reconfirmations` | `customer_feedback` | Summary text |
-| `Reconf_Closure_Status` | `reconfirmations` | `status` | SATISFIED_CLOSED / UNSATISFIED_REOPENED |
-| `Reconf_Closure_Verified` | `reconfirmations` | `closure_verified` | True/False |
-
----
-
-### 2.4 Complaints, Escalation & Service Advisor Workflows
-
-| Legacy AppSheet Column Header | Target Table | Target Field | Data Type | Notes / Transformation |
-| :--- | :--- | :--- | :--- | :--- |
-| `Complaint_Flag` (Yes/No) | `complaints` | Row existence in table | `ROW` | Complaint created if customer is dissatisfied |
-| `Complaint_Ticket_No` | `complaints` | `complaint_no` | `VARCHAR(50)` | Unique format (e.g. CMP-2026-0001) |
-| `Complaint_Category` | `complaints` | `category_id` | `UUIDv7` | Foreign key to `complaint_categories` |
-| `Complaint_Severity` | `complaints` | `severity` | `VARCHAR(30)` | LOW, MEDIUM, HIGH, CRITICAL |
-| `Complaint_Status` | `complaints` | `status` | `VARCHAR(40)` | OPEN, ASSIGNED, IN_PROGRESS, RESOLVED, CLOSED |
-| `Complaint_Description` | `complaints` | `description` | `TEXT` | Customer issue details |
-| `Assigned_Manager_Advisor` | `complaints` | `assigned_to_id` | `UUIDv7` | Assigned resolver User ID |
-| `SLA_Due_Timestamp` | `complaints` | `sla_due_at` | `TIMESTAMPTZ` | SLA deadline |
-| `SLA_Breach_Flag` | `complaints` | `is_sla_breached` | `BOOLEAN` | Auto-set by background timer |
-| `Resolution_Remarks` | `complaints` | `resolution_remarks` | `TEXT` | Workshop action taken |
-| `Resolved_By` | `complaints` | `resolved_by_id` | `UUIDv7` | Resolver User ID |
-| `Resolved_Timestamp` | `complaints` | `resolved_at` | `TIMESTAMPTZ` | Resolution date/time |
-| `Closure_Document_Link` | `documents` | `file_url` | `VARCHAR(500)` | Attached photo/invoice in `documents` |
-| `Adv_Followed_By` | `advisor_calls` | `advisor_id` | `UUIDv7` | Service Advisor User ID |
-| `Adv_Call_Status` | `advisor_calls` | `adv_call_status` | `VARCHAR(50)` | Advisor follow-up call status |
-| `Adv_Case_Status` | `advisor_calls` | `adv_case_status` | `VARCHAR(50)` | Case status according to advisor |
-| `Adv_VOC` | `advisor_calls` | `adv_voc` | `TEXT` | Advisor notes |
-| `Adv_Status` | `advisor_calls` | `adv_status` | `VARCHAR(40)` | Advisor progress state |
-
----
-
-## 3. Explicitly Dropped Legacy Columns & Justification
-
-The following columns from the legacy Google AppSheet sheet are intentionally **dropped** from the database schema:
-
-| Dropped Legacy Column | Type in AppSheet | Reason for Dropping & Modern Replacement |
+| Column Index | Column Header | Reason for Dropping |
 | :--- | :--- | :--- |
-| `_RowNumber` | AppSheet System | Ephemeral spreadsheet row position; replaced by persistent `UUIDv7` primary keys. |
-| `_Computed_Key` / `Key_ID` | Formula Concatenation | Redundant formula combining `[JC_NO]&"-"&[Reg_No]`; replaced by relational FKs and unique composite index `(tenant_id, branch_id, job_card_no)`. |
-| `Display_Status_Color` | AppSheet Enum / Color | UI presentation logic hardcoded in data; replaced by Tailwind CSS design tokens in frontend components. |
-| `Status_Icon_Formula` | Emoji Formula | E.g. `IF([Status]="Connected", "🟢", "🔴")`; replaced by Lucide SVG icon components in React. |
-| `CSAT_Formula_Column` | Virtual Column Formula | Spreadsheets calculated CSAT via unwieldy nested IF statements; replaced by dynamic score calculation in `survey_responses.csat_score` on submission. |
-| `NPS_Promoter_Flag` | Formula Column | Replaced by indexed `nps_category` ('PROMOTER', 'PASSIVE', 'DETRACTOR') computed directly from `nps_score`. |
-| `Full_Customer_Summary_Label`| Formula Text | Virtual concatenated string used for AppSheet dropdown lists; replaced by TanStack Table customizable cell formatters. |
-| `CRE_Shift_Date_Embedded` | Data Redundancy | In AppSheet, CRE shift dates were redundantly pasted across each row; replaced by normalized `login_logs` table tracking actual shift durations. |
-| `Google_Drive_Folder_ID` | File Path String | AppSheet Google Drive folder hierarchy; replaced by S3/MinIO bucket keys and CDN pre-signed URLs stored in `documents`. |
+| **5** | `Brand Logo` | AppSheet local image asset path (`PSF_Images/...`). Brands manage logos via central media/S3 upload in platform settings. |
+| **67** | `Closure Doc` | AppSheet local filesystem image/pdf path (`PSF_Images/...`). Document attachments are managed via MinIO pre-signed S3 URLs. |
+| **70** | `Update Changes` | Redundant counter identical to `Total Attempted` tracking legacy formula recalculations. |
+| **77** | `Ather Docs` | AppSheet local filesystem asset path for Ather gate pass PDFs. |
+| **94** | `Document (TNPS)` | AppSheet local filesystem asset path for TNPS paperwork. |
+| **111** | `8` | Empty spreadsheet column with artifact header name `"8"`. |
+| **114** | `9` | Empty spreadsheet column with artifact header name `"9"`. |
+
+---
+
+## 2. Exhaustive 120-Column Mapping Table
+
+| Col Index | Legacy Column Header | Target Entity | Target Field / Question Key | Data Type | Notes & Transformation Rules |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **0** | `Unique ID` | `job_cards` | `external_id` / metadata | `VARCHAR(32)` | 8-char hex AppSheet key |
+| **1** | `Uploaded By` | `job_cards` / `import_batches` | `uploaded_by` | `UUIDv7` | Resolved against user accounts |
+| **2** | `Upload Timestamp` | `import_batches` | `created_at` | `TIMESTAMPTZ` | Parsed as `dd-mm-yyyy HH:MM:SS` (Asia/Kolkata) |
+| **3** | `Brand` | `brands` | `id` | `UUIDv7` | FK to OEM brand (Hyundai, Tata, MG, etc.) |
+| **4** | `Branch` | `branches` | `id` | `UUIDv7` | Resolved by name or DMS code |
+| **5** | `Brand Logo` | *DROPPED* | — | — | Local AppSheet image path dropped |
+| **6** | `Job Card No` | `job_cards` | `job_card_no` | `VARCHAR(60)` | Unique per branch; prefix identifies DMS code (S8211=Hubli, S8827=Gadag) |
+| **7** | `Job Card Date` | `job_cards` | `job_card_date` | `DATE` | Standardized ISO date `dd-mm-yyyy` -> `YYYY-MM-DD` |
+| **8** | `Customer Name` | `customers` | `name` | `VARCHAR(150)` | Title-cased customer name |
+| **9** | `Contact Number` | `customers` | `phone` & `phone_hash` | `VARCHAR(255)` | Encrypted at rest (AES-128-CBC) + HMAC-SHA256 search hash |
+| **10** | `Vin No` | `vehicles` | `vin` | `VARCHAR(50)` | 17-char Vehicle Identification Number |
+| **11** | `Reg No` | `vehicles` | `reg_no` | `VARCHAR(30)` | Cleaned alphanumeric license plate number |
+| **12** | `Model` | `vehicles` | `model` | `VARCHAR(100)` | Vehicle model name (e.g. Creta, i20, Nexon) |
+| **13** | `Service Advisor` | `job_cards` | `service_advisor_name` | `VARCHAR(120)` | Stored as text and mapped to user account |
+| **14** | `Service Type` | `job_cards` | `service_type` | `VARCHAR(80)` | 1st Free, Paid, Periodic Maintenance, Running Repair |
+| **15** | `Total Service Amount`| `job_cards` | `total_amount` | `NUMERIC(12,2)` | Invoiced total service amount |
+| **16** | `Calling Date` | `followup_queues`| `due_at` | `TIMESTAMPTZ` | Target call scheduling window |
+| **17** | `Call Status` | `calls` / `call_attempts` | `call_status` | `VARCHAR(50)` | Connected, Not Connected |
+| **18** | `Case Status` | `calls` / `call_attempts` | `case_status` | `VARCHAR(50)` | Derived from rating band or sentiment state |
+| **19** | `VOC` | `calls` / `call_attempts` | `voc` | `TEXT` | Voice of Customer verbatim feedback |
+| **20** | `Followed By` | `calls` / `call_attempts` | `called_by_id` | `UUIDv7` | Resolved to CRE caller User ID |
+| **21** | `Followup Timestamp` | `calls` / `call_attempts` | `called_at` | `TIMESTAMPTZ` | Dial execution timestamp (Asia/Kolkata) |
+| **22** | `Name of CRE` | `followup_queues`| `assigned_to_id` | `UUIDv7` | Assigned CRE queue owner |
+| **23** | `Maintenance and Repair Work Done on Car` | `survey_responses.answers` | `rating_generic_maintenance_repair` | `INTEGER` | Generic PSF rating (1-10 or 1-5) |
+| **24** | `Whether You Have Availed Pick & Drop Facility? (Yes/No)` | `survey_responses.answers` | `availed_pick_drop` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **25** | `Were You Offered Pick Up and Drop or Not?` | `survey_responses.answers` | `offered_pick_drop` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **26** | `Were You Contacted by the Workshop Staff for Feedback After Delivery of Vehicle? (Yes/No/Not Aware)` | `survey_responses.answers` | `contacted_feedback_post_delivery` | `VARCHAR(20)` | Normalized: "Yes" / "No" / "Not Aware" |
+| **27** | `Whether the Service Advisor Has Opened the Repair Order Through Tablet Device?` | `survey_responses.answers` | `opened_ro_via_tablet` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **28** | `How Do You Rate Courtesy & Behaviour of the Person Who Came to Pick & Drop Your Vehicle?` | `survey_responses.answers` | `pick_drop_staff_courtesy` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **29** | `Whether the Repair Charges Explained to You Were Reasonable With Respect to Work Done on Your Car?` | `survey_responses.answers` | `charges_explained_reasonable` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **30** | `Basis Your Last Service Experience, How Strongly Would You Recommend the Dealer to Your Friends, Relatives, or Colleagues?` | `survey_responses.answers` | `recommend_dealer_friends` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **31** | `Did the Service Advisor Offer You the Road Test of Your Car Before Opening the Repair Order (Job Card)?` | `survey_responses.answers` | `road_test_before_ro` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **32** | `Did the Service Advisor Offer You a Road Test Before Delivery After Getting the Vehicle Serviced?` | `survey_responses.answers` | `road_test_before_delivery` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **33** | `Did the Service Advisor Check the Maintenance History of Your Vehicle?` | `survey_responses.answers` | `checked_maintenance_history` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **34** | `Did the Service Advisor Conduct the Vehicle Inspection in Front of You?` | `survey_responses.answers` | `inspection_in_front_of_customer` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **35** | `Did You Get the Regular Update on WhatsApp Group for Your Vehicle Status?` | `survey_responses.answers` | `whatsapp_status_updates` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **36** | `Were You Offered Water Bottle During Your Visit to the Workshop? (Yes/No/Not Aware/NA)` | `survey_responses.answers` | `offered_water_bottle` | `VARCHAR(20)` | Normalized: "Yes" / "No" / "Not Aware" |
+| **37** | `Did the Service Advisor Explain the Parts Repaired and Work Performed?` | `survey_responses.answers` | `explained_parts_repaired_work` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **38** | `After Completion of the Service or Repair, Did You Receive Your Car Back on the Same Day?` | `survey_responses.answers` | `car_returned_same_day` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **39** | `Was the Service Advisor Polite and Courteous During Interaction?` | `survey_responses.answers` | `advisor_polite_courteous` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **40** | `Was the Restroom Maintained Neat and Clean?` | `survey_responses.answers` | `restroom_neat_clean` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **41** | `How Would You Rate the Workshop Support for Insurance Claim Processing?` | `survey_responses.answers` | `insurance_claim_support_rating` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **42** | `Did You Get the Proper Response from Dealer Staff When You Visited the Workshop?` | `survey_responses.answers` | `proper_response_dealer_staff` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **43** | `Did the Service Advisor Explain the Parts Replaced and Charges Taken at the Time of Delivery?` | `survey_responses.answers` | `explained_parts_replaced_charges` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **44** | `Did the Service Advisor Walk You Out With the Statement Enjoy Your Driving with Hyundai?` | `survey_responses.answers` | `walk_out_hyundai_statement` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **45** | `How Would You Rate the Maintenance & Repair Work Done on Your Car?` | `survey_responses.answers` | `rating_maintenance_repair_work` | `INTEGER` | Rating (1-10) |
+| **46** | `How Would You Rate the Condition or Cleanliness of Your Car, on Return?` | `survey_responses.answers` | `rating_cleanliness_on_return` | `INTEGER` | Rating (1-10) |
+| **47** | `How Would You Rate the Explanation Given by Service Advisor on the Work Done of Your Car?` | `survey_responses.answers` | `rating_explanation_by_advisor` | `INTEGER` | Rating (1-10) |
+| **48** | `How Would You Rate Your Overall Interaction & Experience with Workshop?` | `survey_responses.answers` | `rating_overall_interaction_experience` | `INTEGER` | Rating (1-10) |
+| **49** | `Whether the Vehicle Was Picked & Dropped as per Committed Time?` | `survey_responses.answers` | `rating_pick_drop_committed_time` | `INTEGER` | Rating (1-10) |
+| **50** | `How Would You Rate the Service Delivery Process of Your Car After Servicing?` | `survey_responses.answers` | `rating_service_delivery_process` | `INTEGER` | Rating (1-10) |
+| **51** | `How Would You Rate the Overall Cleanliness of Dealer Facility?` | `survey_responses.answers` | `rating_cleanliness_dealer_facility` | `INTEGER` | Rating (1-10) |
+| **52** | `How Would You Rate the Quality of Denting, Painting and Finishing of Repairs Carried Out in the Car?` | `survey_responses.answers` | `rating_denting_painting_quality` | `INTEGER` | Rating (1-10) |
+| **53** | `How Would You Rate the Ambience and Hygiene of Customer Interaction Area in the Workshop?` | `survey_responses.answers` | `rating_ambience_hygiene_customer_area` | `INTEGER` | Rating (1-10) |
+| **54** | `Did the Service Advisor Inform You About the Promised Delivery Date and Time of Your Car?` | `survey_responses.answers` | `rating_informed_promised_delivery_time` | `INTEGER` | Rating (1-10) |
+| **55** | `Condition of Cleanliness of the Car` | `survey_responses.answers` | `rating_generic_cleanliness` | `INTEGER` | Generic PSF rating |
+| **56** | `Explanation Given by Service Advisor on Work Done and Repair Charges After Servicing` | `survey_responses.answers` | `rating_generic_explanation_charges` | `INTEGER` | Generic PSF rating |
+| **57** | `Delivery Process` | `survey_responses.answers` | `rating_generic_delivery_process` | `INTEGER` | Generic PSF rating |
+| **58** | `Cleanliness of Dealer Facility` | `survey_responses.answers` | `rating_generic_facility_cleanliness` | `INTEGER` | Generic PSF rating |
+| **59** | `Overall Interaction and Experience with Workshop` | `survey_responses.answers` | `rating_generic_overall_experience` | `INTEGER` | Generic PSF rating |
+| **60** | `After Service Vehicle Condition` | `survey_responses.answers` | `rating_generic_after_service_condition` | `INTEGER` | Generic PSF rating |
+| **61** | `Fairness of Charges` | `survey_responses.answers` | `rating_generic_fairness_charges` | `INTEGER` | Generic PSF rating |
+| **62** | `Payment Confirmation` | `survey_responses.answers` | `rating_generic_payment_confirmation` | `INTEGER` | Generic PSF rating |
+| **63** | `How Would You Rate or Recommend to Your Family & Friends?` | `survey_responses.answers` | `rating_generic_recommend_family_friends` | `INTEGER` | Generic PSF rating |
+| **64** | `Complaints` | `complaints` | `description` | `TEXT` | Customer complaint narrative |
+| **65** | `Complaint Categories` | `complaints` | `category_id` | `UUIDv7` | Resolved against 14 clean complaint categories |
+| **66** | `Complaint Closure` | `complaints` / `complaint_events` | `resolution_remarks` / `remarks` | `TEXT` | Closer action taken remarks |
+| **67** | `Closure Doc` | *DROPPED* | — | — | AppSheet local filesystem path dropped |
+| **68** | `Total Attempted` | `followup_queues` / `call_attempts` | `attempts` / attempt reconstruction | `INTEGER` | Reconstructed into individual attempt records |
+| **69** | `Total Contacted` | `followup_queues` | `contacted_count` | `INTEGER` | Number of successful contacts |
+| **70** | `Update Changes` | *DROPPED* | — | — | Redundant counter identical to attempted |
+| **71** | `Updated By` | `complaints` | `resolved_by_id` / `closed_by_id` | `UUIDv7` | Complaint closer user (e.g. Deepa Hiremath) |
+| **72** | `Updated Timestamp` | `complaints` | `resolved_at` / `closed_at` | `TIMESTAMPTZ` | Timestamp of complaint resolution |
+| **73** | `Alt Contact Number` | `customers` | `alt_phone` | `VARCHAR(255)` | Encrypted at rest (AES-128-CBC) |
+| **74** | `Current Status` | `complaints` | `status` | `VARCHAR(40)` | "Closed in Time" / "Closed Late" / "Open" |
+| **75** | `Technician` | `job_cards` | `technician_name` | `VARCHAR(120)` | Assigned service technician |
+| **76** | `Where all the jobs requested by you done up to your satisfaction?` | `survey_responses.answers` | `ather_jobs_satisfaction` | `VARCHAR(10)` | Brand survey question (Ather) |
+| **77** | `Ather Docs` | *DROPPED* | — | — | AppSheet local filesystem asset path |
+| **78** | `Taking everything into consideration, how likely are you to recommend JSW MG Brand to your Family or friends?` | `survey_responses.answers` | `mg_recommend_brand_nps` | `INTEGER` | MG OEM NPS rating (0-10) |
+| **79** | `How likely are you to recommend MG Workshop from where you got your vehicle serviced, to your Family or friend ?` | `survey_responses.answers` | `mg_recommend_workshop_nps` | `INTEGER` | MG Workshop NPS rating (0-10) |
+| **80** | `What specific improvement areas would make you recommend dealer?` | `survey_responses.answers` | `mg_improvement_areas` | `TEXT` | MG feedback text |
+| **81** | `How would you rate the Service advisor assigned at the Workshop for your car?` | `survey_responses.answers` | `mg_advisor_rating` | `INTEGER` | MG SA rating (1-5) |
+| **82** | `Could you please tell us the specific reasons for this rating` | `survey_responses.answers` | `mg_advisor_reasons` | `TEXT` | Root cause justification text |
+| **83** | `How would you rate the overall process of handing over the car for service and taking the delivery` | `survey_responses.answers` | `mg_handover_rating` | `INTEGER` | MG delivery rating (1-5) |
+| **84** | `Could you please tell us the specific reasons for this rating?` | `survey_responses.answers` | `mg_handover_reasons` | `TEXT` | Root cause justification text |
+| **85** | `Was the work to be done and any applicable charges, explained to you before taking the car in for service` | `survey_responses.answers` | `mg_work_charges_explained_before` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **86** | `Could you pls elaborate that what did not happen at the workshop?` | `survey_responses.answers` | `mg_charges_explanation_notes` | `TEXT` | Feedback detail |
+| **87** | `Were all the jobs requested or issues informed by you resolved in the 1st attempt itself?` | `survey_responses.answers` | `mg_first_attempt_resolution` | `VARCHAR(10)` | Normalized: "Yes" / "No" |
+| **88** | `Could you pls elaborate what did not happen as per expectation at workshop?` | `survey_responses.answers` | `mg_first_attempt_reasons` | `TEXT` | First attempt failure reasons |
+| **89** | `TNPS Followed By` | `tnps_calls` | `conducted_by_id` | `UUIDv7` | TNPS caller user |
+| **90** | `TNPS Followed Timestamp` | `tnps_calls` | `called_at` | `TIMESTAMPTZ` | TNPS dial timestamp |
+| **91** | `TNPS Call Status` | `tnps_calls` | `call_status` | `VARCHAR(50)` | Connected / Not Connected |
+| **92** | `TNPS VOC` | `tnps_calls` | `voc` | `TEXT` | TNPS verbatim feedback |
+| **93** | `TNPS Ratings` | `tnps_calls` | `brand_recommend_score` | `INTEGER` | TNPS score (0-10) |
+| **94** | `Document (TNPS)` | *DROPPED* | — | — | AppSheet local filesystem asset path |
+| **95** | `TNPS Date` | `followup_queues`| `scheduled_tnps_date` | `DATE` | Scheduled TNPS date (typically T+7 days after PSF) |
+| **96** | `Followed By Advisor` | `advisor_calls` | `advisor_id` | `UUIDv7` | Service Advisor User ID |
+| **97** | `Timestamp` | `advisor_calls` | `called_at` | `TIMESTAMPTZ` | Advisor follow-up timestamp |
+| **98** | `Adv Call Status` | `advisor_calls` | `adv_call_status` | `VARCHAR(50)` | Connected, Call Later |
+| **99** | `Adv Case Status` | `advisor_calls` | `adv_case_status` | `VARCHAR(50)` | Resolved, Vehicle Revisiting |
+| **100** | `Adv VOC` | `advisor_calls` | `adv_voc` | `TEXT` | Advisor verbatim notes |
+| **101** | `Adv Status` | `advisor_calls` | `adv_status` | `VARCHAR(40)` | CLOSED, IN_PROGRESS |
+| **102** | `Reconfirmation Date` | `reconfirmations` | `reconfirmation_date` | `TIMESTAMPTZ` | Date of closure verification call |
+| **103** | `Reconfirmation Done By` | `reconfirmations` | `conducted_by_id` | `UUIDv7` | CRE conducting reconfirmation |
+| **104** | `Reconfirmation Status` | `reconfirmations` | `status` | `VARCHAR(40)` | SATISFIED_CLOSED / UNSATISFIED_REOPENED |
+| **105** | `Reconfirmation Complaint` | `reconfirmations` | `customer_feedback` | `TEXT` | Customer feedback during reconfirmation |
+| **106** | `Status` | `reconfirmations` | `status` | `VARCHAR(40)` | Secondary status field |
+| **107** | `Reconfirmation Complaint Closure` | `reconfirmations` | `customer_feedback` | `TEXT` | Closure verification confirmation |
+| **108** | `Closed By` | `complaints` | `closed_by_id` | `UUIDv7` | Verification closer user |
+| **109** | `Closed Timestamp` | `complaints` | `closed_at` | `TIMESTAMPTZ` | Timestamp when complaint verified closed |
+| **110** | `Reconfirmation Call Satus` | `reconfirmations` | `call_status` | `VARCHAR(50)` | Connected / Not Connected |
+| **111** | `8` | *DROPPED* | — | — | Empty column named "8" |
+| **112** | `Overall Experience` | `survey_responses.answers` | `overall_experience_score` | `INTEGER` | Rating (1-10) |
+| **113** | `Timely Delivery` | `survey_responses.answers` | `timely_delivery_score` | `INTEGER` | Rating (1-10) |
+| **114** | `9` | *DROPPED* | — | — | Empty column named "9" |
+| **115** | `Responsiveness of Advisor` | `survey_responses.answers` | `advisor_responsiveness_score` | `INTEGER` | Rating (1-10) |
+| **116** | `Quality of Repair` | `survey_responses.answers` | `repair_quality_score` | `INTEGER` | Rating (1-10) |
+| **117** | `Vehicle cleanliness & Condition` | `survey_responses.answers` | `cleanliness_condition_score` | `INTEGER` | Rating (1-10) |
+| **118** | `Insurance Claim Support (If Applicable  SR Accident)` | `survey_responses.answers` | `insurance_accident_support_score` | `INTEGER` | Rating (1-10) |
+| **119** | `Any recommendation` | `survey_responses.answers` | `general_recommendations` | `TEXT` | Verbatim customer comments |
+
+---
+
+## 3. Standard 13-Column Production DMS Import Template
+
+The modern production DMS ingestion interface uses a clean 13-column format representing standard dealership export data from any OEM (Hyundai, Tata Motors, MG, Ather, Mahindra, etc.).
+
+### 3.1 Standard Columns & Entity Mapping
+
+| Column Header | Recognized Header Aliases | Target Entity | Target Database Field | Validation & Normalization Rules | Error / Warning Behavior |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Brand** | Make, OEM, Manufacturer | `brands` | `id` (resolved) | Case-insensitive lookup against tenant master brands. | Unknown brand is a **Row Error**. |
+| **Branch** | Workshop, Dealership Branch, Location, Outlet | `branches` | `id` (resolved) | Resolved by branch name, code, or DMS code (`S8211`, `S8827`). Branch must belong to the specified brand. | Unknown branch or brand mismatch is a **Row Error**. User must have scope. |
+| **Brand Logo** | Logo | *IGNORED* | — | Optional column. Always ignored; logos are loaded dynamically from brand masters. | Safe to include or omit. |
+| **Job Card No** | Job Card Number, RO No, RO Number, JC No, Repair Order | `job_cards` | `job_card_no` | Required text identifier. Stripped of extra whitespace. | Missing or blank is a **Row Error**. Existing `(branch_id, job_card_no)` skipped as duplicate. |
+| **Job Card Date** | RO Date, JC Date, Bill Date, Invoice Date, Service Date | `job_cards` | `job_card_date` | Supports `DD-MM-YYYY`, `DD/MM/YYYY`, `YYYY-MM-DD`, and Excel serial dates. | Unparseable date is a **Row Error**. Future dates or dates > 90 days old trigger a **Warning**. |
+| **Customer Name** | Customer, Cust Name, Client, Owner, Party Name | `customers` | `name` | Trimmed, collapsed spaces, title-cased. Default: "Customer". | Non-fatal. Defaults to "Customer" if blank. |
+| **Contact Number** | Mobile No, Mobile Number, Phone, Mobile, Phone Number | `customers` | `phone` (AES-128-CBC) & `phone_hash` (HMAC-SHA256) | Strips spaces, dashes, dots, `+91`, and leading `0`. Safe cell normalizer handles Excel scientific notation (`9.48E+09`). Must be 10 digits starting with 6, 7, 8, or 9. | Invalid phone format or scientific conversion failure is a **Row Error**. |
+| **Vin No** | VIN, Chassis, Chassis No, Chassis Number | `vehicles` | `vin` | Uppercase, removed whitespace. Clean alphanumeric text. | Flagged with a **Warning** if length is not 17 characters. |
+| **Reg No** | Registration No, Vehicle No, Car No, License Plate | `vehicles` | `reg_no` | Uppercase, spaces/dashes removed. Generated `TEMP-{jc_no}` if missing. | Non-fatal fallback. |
+| **Model** | Vehicle Model, Car Model, Model Name | `vehicles` | `model` | Trimmed text string. Default: "Unknown Model". | Non-fatal fallback. |
+| **Service Advisor** | Advisor, SA Name, SA, Service Consultant | `job_cards` / `users` | `service_advisor_name` / `service_advisor_id` | Matched against active `SERVICE_ADVISOR` users. If unrecognized, system creates an **inactive placeholder user** (`is_active=False`). | Non-fatal. Creates placeholder user and lists in report. |
+| **Service Type** | Type of Service, Job Type, Service Category | `job_cards` | `service_type` | Matched against `service_types` dropdown master (PMS, RR, Bodyshop, General, Warranty). | Unrecognized service type triggers a **Warning** and maps to `Unmapped Service`. |
+| **Total Service Amount** | Amount, Total Amount, Bill Amount, Net Amount, Invoice Amount | `job_cards` | `total_amount` | Strips currency symbols (₹, Rs.), commas, spaces. Must be a numeric value $\ge 0$. | Negative amount is a **Row Error**. Empty amounts default to `0.0`. |
+
+### 3.2 System-Generated Audit Fields (Never Read from File)
+- **Unique ID**: Auto-generated `UUIDv7` primary key.
+- **Uploaded By**: Authenticated user ID extracted from JWT token.
+- **Upload Timestamp**: Server-side UTC timestamp (`datetime.now(timezone.utc)`).
+- **File Hash**: SHA-256 digest of binary content for idempotent deduplication.
+
+### 3.3 Auto-Generated Follow-Up Campaigns
+Upon batch ingestion:
+1. **PSF Call Queue**: Created for all OEM brands, scheduled for delivery date + customer calling window.
+2. **Hyundai Happiness Calling**: Automatically scheduled for Hyundai vehicles at delivery date + 15 days.
+3. **Automatic Equal Allocation**: Unassigned calls are partitioned equally across CREs marked present for the day.

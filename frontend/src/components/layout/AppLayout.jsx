@@ -1,3 +1,20 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Master Dashboard Shell Layout.
+ * Provides the persistent layout surrounding all dashboard pages:
+ * renders the responsive Sidebar on the left, Header at the top, and scrollable content area.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Houses `<Sidebar />` and `<Header />`.
+ * - Manages mobile menu drawer open/close state.
+ * - Renders active page component inside `<main>` via `<Outlet />`.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Page content hidden under header or off-screen
+ *   -> Cause: CSS layout overflow or z-index issue.
+ *   -> What should you do: Check responsive Tailwind classes in `AppLayout.jsx`.
+ * ============================================================================
+ */
 import React, { useState } from 'react';
 import Header from './Header';
 import Sidebar from './Sidebar';

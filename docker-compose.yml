@@ -1,3 +1,25 @@
+# ================================================================================
+# FILE PURPOSE:
+# Multi-Container Docker Orchestration for the PSF (Post-Service Follow-up) System.
+# Defines and runs all 6 local services required by the dealership platform:
+# 1. psf_postgres (Database on port 5434)
+# 2. psf_redis    (In-memory Cache & WebSocket message broker on port 6380)
+# 3. psf_minio    (S3 Object Storage for files & reports on port 9000/9001)
+# 4. psf_api      (FastAPI Backend Server on port 8000)
+# 5. psf_worker   (Asynchronous Background Task Runner)
+# 6. psf_web      (Nginx Web Server hosting the React Vite Frontend on port 5173)
+#
+# COMMON ERRORS & TROUBLESHOOTING GUIDE:
+# - Error: Port 5434 / 6380 / 8000 / 5173 already in use / bind failed
+#   -> Cause: Another container or local process is already using that port.
+#   -> What should you do: Run `netstat -ano | findstr <PORT>` or check docker containers (`docker ps`). Stop conflicting containers.
+# - Error: Container keeps restarting or healthcheck failing
+#   -> Cause: Database or Redis crashed or wrong password in .env.
+#   -> What should you do: Run `docker compose logs <service_name>` (e.g. `docker compose logs api`) to see the exact crash stack trace.
+# - How to restart fresh:
+#   -> Run `docker compose restart` to restart all containers, or `docker compose down && docker compose up -d` to rebuild.
+# ================================================================================
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -72,7 +94,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
 
   worker:
     build:

@@ -1,3 +1,25 @@
+"""
+================================================================================
+FILE PURPOSE: Customer Data Encryption & Privacy Protection (DPDP Act Compliance).
+This file handles encrypting and decrypting sensitive customer data (especially phone numbers)
+using AES-256-GCM authenticated encryption, and generating deterministic HMAC-SHA256 blind hashes
+so you can search for a customer by phone number in the database without storing raw numbers in plain text.
+
+KEY RESPONSIBILITIES:
+- Encrypts raw 10-digit phone numbers into secure ciphertext before saving to the database.
+- Decrypts stored ciphertext back into human-readable phone numbers for authorized users.
+- Generates blind index hashes (HMAC-SHA256) for fast indexed searching.
+- Provides mask_phone helper (e.g. '+91 ******3456') to protect customer privacy on screens.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: InvalidTag error or cryptography.exceptions.InvalidSignature
+  -> Cause: Attempted to decrypt data with a different encryption key than the one used during encryption.
+  -> What should you do: Do not change FIELD_ENCRYPTION_KEY in .env after data is imported. If you did, restore the original key or re-import the test data.
+- Error: ValueError: Phone number must be at least 10 digits
+  -> Cause: A phone number passed to encrypt_phone or mask_phone was malformed or empty.
+  -> What should you do: Verify phone normalization in the import pipeline before calling encryption routines.
+================================================================================
+"""
 import base64
 import hashlib
 import hmac
@@ -84,6 +106,12 @@ def mask_phone(phone: Optional[str]) -> str:
     if not phone:
         return ""
     decrypted = decrypt_phone(phone) or ""
-    if len(decrypted) <= 4:
-        return "****"
-    return f"{decrypted[:3]}****{decrypted[-3:]}"
+    digits = "".join(filter(str.isdigit, decrypted))
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    if len(digits) >= 10:
+        return f"+91 {digits[:2]}*****{digits[-3:]}"
+    elif len(digits) > 4:
+        return f"{digits[:2]}****{digits[-2:]}"
+    return "****"
+

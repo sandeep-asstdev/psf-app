@@ -1,3 +1,24 @@
+"""
+================================================================================
+FILE PURPOSE: MinIO / S3 Object Storage File Management.
+This file handles uploading, downloading, and managing physical files (DMS import files,
+error Excel reports, audio recordings, customer survey attachments) in MinIO S3 object storage.
+
+KEY RESPONSIBILITIES:
+- Initializes default S3 buckets (`psf-documents`, `psf-exports`) during app startup (`init_storage_buckets`).
+- Uploads file byte streams to S3 with content-type detection (`upload_file`).
+- Downloads file bytes from S3 (`download_file`).
+- Generates secure presigned download URLs.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: botocore.exceptions.EndpointConnectionError: Could not connect to the endpoint URL http://minio:9000
+  -> Cause: The MinIO storage container (psf_minio) is stopped or not reachable.
+  -> What should you do: Run `docker ps` to verify psf_minio is running. Run `docker compose up -d minio` to restart it.
+- Error: botocore.exceptions.ClientError: NoSuchBucket
+  -> Cause: The target S3 bucket does not exist.
+  -> What should you do: Restart psf_api (`docker restart psf_api`) to trigger `init_storage_buckets()` which auto-creates required buckets.
+================================================================================
+"""
 import logging
 from typing import Optional
 import boto3
@@ -43,3 +64,4 @@ async def init_storage_buckets() -> None:
                     logger.warning(f"Bucket creation error for {bucket}: {ce}")
     except Exception as e:
         logger.warning(f"Storage bucket init warning: {e}")
+

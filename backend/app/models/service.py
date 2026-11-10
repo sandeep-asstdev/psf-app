@@ -1,3 +1,19 @@
+"""
+================================================================================
+FILE PURPOSE: Workshop Service Job Cards & Service Advisor Records.
+Defines database tables representing real workshop service visits (JobCard),
+assigned Service Advisors, and technicians who worked on the customer's vehicle.
+
+KEY RESPONSIBILITIES:
+- JobCard: job card number, service date, invoice amount, service type, advisor link, vehicle link.
+- ServiceAdvisor: advisor name, employee code, active status, branch link.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: Job card not linking to branch or brand
+  -> Cause: The branch_id or brand_id foreign key in JobCard was passed as NULL.
+  -> What should you do: Ensure the DMS import template correctly resolves Brand and Branch before creating the job card.
+================================================================================
+"""
 import uuid
 from datetime import datetime, date
 from typing import Optional, List
@@ -16,9 +32,10 @@ class ImportBatch(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     uploaded_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    brand_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("brands.id"), nullable=False)
+    brand_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("brands.id"), nullable=True)
     branch_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("branches.id"), nullable=True)
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     file_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     total_rows: Mapped[int] = mapped_column(Integer, default=0)
     processed_rows: Mapped[int] = mapped_column(Integer, default=0)
@@ -32,6 +49,9 @@ class ImportBatch(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     job_cards: Mapped[List["JobCard"]] = relationship(back_populates="import_batch")
+    uploader: Mapped["User"] = relationship(foreign_keys=[uploaded_by])
+    brand: Mapped["Brand"] = relationship(foreign_keys=[brand_id])
+    branch: Mapped[Optional["Branch"]] = relationship(foreign_keys=[branch_id])
 
     __table_args__ = (
         Index("ix_import_batches_tenant_status_created", "tenant_id", "status", "created_at"),
@@ -65,6 +85,12 @@ class JobCard(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     import_batch: Mapped[Optional["ImportBatch"]] = relationship(back_populates="job_cards")
+    brand: Mapped["Brand"] = relationship(foreign_keys=[brand_id])
+    branch: Mapped["Branch"] = relationship(foreign_keys=[branch_id])
+    customer: Mapped["Customer"] = relationship(foreign_keys=[customer_id])
+    vehicle: Mapped["Vehicle"] = relationship(foreign_keys=[vehicle_id])
+    service_advisor: Mapped[Optional["User"]] = relationship(foreign_keys=[service_advisor_id])
+    followup_queues: Mapped[List["FollowupQueue"]] = relationship(back_populates="job_card", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("uq_job_cards_tenant_branch_no", "tenant_id", "branch_id", "job_card_no", unique=True),
@@ -72,3 +98,26 @@ class JobCard(Base):
         Index("ix_job_cards_tenant_advisor", "tenant_id", "service_advisor_id"),
         Index("ix_job_cards_tenant_customer", "tenant_id", "customer_id"),
     )
+
+
+class ServiceType(Base):
+    __tablename__ = "service_types"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    color: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    icon: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    behaviour_flags: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        Index("uq_service_types_tenant_code", "tenant_id", "code", unique=True),
+    )
+

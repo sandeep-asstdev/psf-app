@@ -1,3 +1,20 @@
+"""
+================================================================================
+FILE PURPOSE: Authentication, Token & Shift Session Schemas.
+Defines Pydantic models for staff login requests, JWT token pairs (access + refresh),
+current user profile responses, and shift attendance logs.
+
+KEY RESPONSIBILITIES:
+- Validates email and password format on login.
+- Formats JWT token response with token expiry and role name.
+- Serializes current user permissions list for frontend access gating.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: ValidationError: value is not a valid email address
+  -> Cause: User entered an invalid email format during login.
+  -> What should you do: Ensure the user enters a standard email format (e.g., name@dealership.com).
+================================================================================
+"""
 import uuid
 from datetime import datetime
 from typing import Optional, List
@@ -44,7 +61,13 @@ class CurrentUserResponse(BaseModel):
     is_active: bool
     role_id: uuid.UUID
     role_name: str
+    level: str = "L3" # L1 | L2 | L3
+    is_super_admin: bool = False
     permissions: List[str]
+    effective_permissions: Optional[dict] = None
+    field_rules: Optional[dict] = None
+    dashboard_config: Optional[dict] = None
+    impersonated_by: Optional[uuid.UUID] = None
     tenant_id: uuid.UUID
     tenant_name: str
     tenant_slug: str
@@ -67,3 +90,4 @@ class LoginLogSchema(BaseModel):
 
     class Config:
         from_attributes = True
+

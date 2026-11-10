@@ -1,3 +1,26 @@
+"""
+================================================================================
+FILE PURPOSE: Application Configuration & Environment Settings.
+This file reads environment variables from your system and the .env file,
+validates them using Pydantic Settings, and provides a single global 'settings'
+object used everywhere in the backend (DB URLs, Redis, MinIO keys, JWT secrets).
+
+KEY RESPONSIBILITIES:
+- Loads database connection strings (Postgres asyncpg & sync psycopg2).
+- Configures Redis URL and worker concurrency limits.
+- Stores security keys: SECRET_KEY for JWT tokens and FIELD_ENCRYPTION_KEY for phone numbers.
+- Defines CORS allowed origins so the frontend at localhost:5173 can call the API.
+- Sets storage bucket names for MinIO S3 document storage.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: ValidationError: 1 validation error for Settings -> FIELD_ENCRYPTION_KEY / SECRET_KEY
+  -> Cause: Required security keys are missing or not 32 URL-safe base64 characters in your .env file.
+  -> What should you do: Open .env and ensure SECRET_KEY and FIELD_ENCRYPTION_KEY are set properly. You can generate a 32-byte key using `python -c 'import secrets, base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())'`.
+- Error: ValidationError: DATABASE_URL not found or invalid format
+  -> Cause: Database connection URL is missing in environment variables.
+  -> What should you do: Check your .env file and ensure POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, and DATABASE_URL are present.
+================================================================================
+"""
 import os
 from typing import List, Union
 from pydantic import AnyHttpUrl, field_validator

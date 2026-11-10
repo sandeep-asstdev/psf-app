@@ -1,3 +1,21 @@
+"""
+================================================================================
+FILE PURPOSE: Authentication, Roles, Shift Attendance & User Scopes.
+Defines database tables for User accounts, security Roles (Super Admin, CRE Admin, CRE),
+RolePermissions (action + data scope), LoginLogs (attendance shift tracking), and UserScopes.
+
+KEY RESPONSIBILITIES:
+- User: personnel details, email, hashed password, role link, active shift status.
+- Role & RolePermission: granular permission definitions and max scopes.
+- LoginLog: daily punch-in / punch-out attendance records with duration tracking.
+- UserScope: explicit brand or branch restrictions assigned to specific users.
+
+COMMON ERRORS & TROUBLESHOOTING GUIDE:
+- Error: User not showing as 'Present' on attendance screen
+  -> Cause: The user does not have an open LoginLog session for today (logout_at is not NULL or session is from previous day).
+  -> What should you do: Log in with that user to start an active shift session, or manually mark them Present in the CRE Presence panel.
+================================================================================
+"""
 import uuid
 from datetime import datetime
 from typing import Optional, List
@@ -16,7 +34,11 @@ class Role(Base):
     tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    permissions: Mapped[list] = mapped_column(JSONB, default=list)
+    level: Mapped[str] = mapped_column(String(20), default="L3") # L1: SUPER ADMIN, L2: CRE ADMIN, L3: BRANCH LEVEL
+    permissions: Mapped[list] = mapped_column(JSONB, default=list) # Legacy permission list for backward compatibility
+    dashboard_config: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True) # Role dashboard widget & menu config
+    field_rules: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True) # Field-level visibility/masking rules
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -24,9 +46,29 @@ class Role(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     users: Mapped[List["User"]] = relationship(back_populates="role")
+    role_permissions: Mapped[List["RolePermission"]] = relationship(back_populates="role", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("uq_roles_tenant_name", "tenant_id", "name", unique=True),
+    )
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False, index=True)
+    permission: Mapped[str] = mapped_column(String(80), nullable=False, index=True) # e.g. brand.manage, call.allocate, etc.
+    data_scope: Mapped[str] = mapped_column(String(40), default="ALL") # ALL | DEALERSHIP | ASSIGNED_BRANCHES | OWN
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    role: Mapped["Role"] = relationship(back_populates="role_permissions")
+
+    __table_args__ = (
+        Index("uq_role_permissions_tenant_role_perm", "tenant_id", "role_id", "permission", unique=True),
+        Index("ix_role_permissions_role_perm", "role_id", "permission"),
     )
 
 

@@ -1,3 +1,24 @@
+/**
+ * ============================================================================
+ * FILE PURPOSE: Dealership Staff Authentication & Punch-In Screen.
+ * Allows dealership employees to sign into the system using their email and password.
+ * Authenticates credentials, starts their shift attendance timer, and stores JWT tokens.
+ * 
+ * KEY RESPONSIBILITIES:
+ * - Submits login credentials to `POST /api/v1/auth/login`.
+ * - Stores JWT access token in AuthStore and triggers shift attendance punch-in.
+ * - Displays clear error banners if credentials are wrong or account is inactive.
+ * - Provides quick-login role chips for fast switching during demo / testing.
+ * 
+ * COMMON ERRORS & TROUBLESHOOTING GUIDE:
+ * - Error: Error banner: 'Incorrect email or password'
+ *   -> Cause: Wrong password entered.
+ *   -> What should you do: Default password for all personnel accounts is `Password@12345`.
+ * - Error: Error banner: 'This account has been deactivated'
+ *   -> Cause: The user's is_active flag is set to False in the database.
+ *   -> What should you do: Have a Super Admin reactivate your account in User Management.
+ * ============================================================================
+ */
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -5,15 +26,15 @@ import { useThemeStore } from '../../store/themeStore';
 import { Sun, Moon, ShieldCheck, Lock, Mail, ArrowRight, UserCheck, Clock } from 'lucide-react';
 
 const DEMO_ACCOUNTS = [
-  { role: 'CRE (Caller)', email: 'priya.cre@apexauto.com', name: 'Priya Sharma (Hyundai Central)' },
-  { role: 'Dealer Admin', email: 'dealer.admin@apexauto.com', name: 'Vikram Malhotra (Apex Auto)' },
-  { role: 'Service Advisor', email: 'rajesh.adv@apexauto.com', name: 'Rajesh Kumar (Central Hub)' },
-  { role: 'Super Admin', email: 'admin@apexauto.com', name: 'Sandeep Sharma (Platform Owner)' },
+  { role: 'CRE (Caller)', email: 'priya.cre@apexauto.com', password: 'Priya@12345', name: 'Priya Sharma (Hyundai Central)' },
+  { role: 'Dealer Admin', email: 'dealer.admin@apexauto.com', password: 'Dealer@12345', name: 'Vikram Malhotra (Apex Auto)' },
+  { role: 'Service Advisor', email: 'rajesh.adv@apexauto.com', password: 'Advisor@12345', name: 'Rajesh Kumar (Central Hub)' },
+  { role: 'Super Admin', email: 'admin@apexauto.com', password: 'Admin@12345', name: 'Sandeep Sharma (Platform Owner)' },
 ];
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('priya.cre@apexauto.com');
-  const [password, setPassword] = useState('Priya@12345');
+  const [email, setEmail] = useState('dealer.admin@apexauto.com');
+  const [password, setPassword] = useState('Dealer@12345');
   const { login, isLoading } = useAuthStore();
   const { resolvedTheme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -26,13 +47,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleSelectDemo = (demoEmail, demoRole) => {
-    setEmail(demoEmail);
-    if (demoEmail.includes('priya')) setPassword('Priya@12345');
-    else if (demoEmail.includes('admin@')) setPassword('Admin@12345');
-    else if (demoEmail.includes('dealer')) setPassword('Dealer@12345');
-    else if (demoEmail.includes('rajesh')) setPassword('Advisor@12345');
-    else setPassword('Welcome@123');
+  const handleSelectDemo = (account) => {
+    setEmail(account.email);
+    setPassword(account.password);
   };
 
   return (
@@ -126,7 +143,7 @@ export default function LoginPage() {
                 <button
                   key={d.role}
                   type="button"
-                  onClick={() => handleSelectDemo(d.email, d.role)}
+                  onClick={() => handleSelectDemo(d)}
                   className={`rounded-lg border p-2 text-left text-xs transition-colors ${
                     email === d.email
                       ? 'border-accent bg-accent-subtle text-accent font-medium dark:bg-slate-800'
@@ -135,6 +152,7 @@ export default function LoginPage() {
                 >
                   <div className="font-semibold text-foreground text-[11px]">{d.role}</div>
                   <div className="text-[10px] text-foreground-subtle truncate">{d.name}</div>
+                  <div className="text-[10px] text-accent/80 font-mono mt-0.5">{d.password}</div>
                 </button>
               ))}
             </div>
@@ -150,3 +168,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
