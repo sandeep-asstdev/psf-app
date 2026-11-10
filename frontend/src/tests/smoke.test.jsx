@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useThemeStore } from '../store/themeStore';
 import { useAuthStore } from '../store/authStore';
+import { useLabelStore, DEFAULT_SYSTEM_LABELS } from '../store/labelStore';
 
 describe('Frontend Theme Store', () => {
   beforeEach(() => {
@@ -61,5 +62,34 @@ describe('Frontend Auth Store', () => {
     await logout();
     expect(useAuthStore.getState().token).toBe(null);
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+});
+
+describe('Frontend Custom Labels & Vocabulary Store', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('provides default terminology and custom label resolution', () => {
+    const { getLabel } = useLabelStore.getState();
+    expect(getLabel('CRE')).toBe('Customer Relationship Executive');
+    expect(getLabel('JOB_CARD')).toBe('Job Card');
+    expect(getLabel('COMPLAINT')).toBe('Customer Complaint');
+    expect(getLabel('DELIGHT')).toBe('Delight');
+    expect(getLabel('TNPS')).toBe('Follow-up Program');
+
+    // Test custom override
+    useLabelStore.setState({
+      labels: {
+        ...DEFAULT_SYSTEM_LABELS,
+        CRE: 'Calling Specialist',
+        JOB_CARD: 'Repair Order',
+      },
+    });
+
+    const updated = useLabelStore.getState();
+    expect(updated.getLabel('CRE')).toBe('Calling Specialist');
+    expect(updated.getLabel('JOB_CARD')).toBe('Repair Order');
+    expect(updated.getLabel('COMPLAINT')).toBe('Customer Complaint');
   });
 });

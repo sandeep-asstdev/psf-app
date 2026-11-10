@@ -46,7 +46,7 @@ from app.models.additional import (
     ConfigChangeHistory,
     NotificationLog,
 )
-from app.models.config import ConfigVersion, FollowUpProgram, OutcomeRule
+from app.models.config import ConfigVersion, FollowUpProgram, OutcomeRule, LabelOverride
 
 __all__ = [
     "Base",
@@ -74,6 +74,7 @@ __all__ = [
     "Reminder",
     "Questionnaire",
     "Question",
+    "KpiTag",
     "ComplaintCategory",
     "Complaint",
     "ComplaintEvent",
@@ -91,4 +92,9 @@ __all__ = [
     "CustomFieldDefinition",
     "ImportMappingTemplate",
     "ConfigChangeHistory",
+    "NotificationLog",
+    "ConfigVersion",
+    "FollowUpProgram",
+    "OutcomeRule",
+    "LabelOverride",
 ]

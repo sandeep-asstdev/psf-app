@@ -32,6 +32,7 @@ from app.models.followup import FollowupQueue, Call, SurveyResponse
 from app.models.complaint import Complaint, ComplaintCategory
 from app.models.tenant import Brand, Branch
 from app.models.auth import User
+from app.models.questionnaire import Questionnaire, Question
 from app.schemas.reports import (
     ReportKpiSummary,
     CsatNpsTrendItem,
@@ -40,6 +41,8 @@ from app.schemas.reports import (
     ComplaintCategoryBreakdown,
     BranchLeaderboardItem,
     FunnelMetricItem,
+    KpiComparisonItem,
+    ComplaintAgeingItem,
     ComprehensiveReportResponse,
 )
 
@@ -100,9 +103,18 @@ async def get_comprehensive_report_data(
         if durations:
             avg_duration = int(sum(durations) / len(durations))
 
-    # 3. Survey Scores (CSAT and NPS)
+    # 3. Survey Scores (CSAT and NPS using normalised scores and kpi_tags, never question keys)
+    q_stmt = (
+        select(Question)
+        .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
+        .where(Questionnaire.tenant_id == tenant_id)
+    )
+    questions_list = (await db.execute(q_stmt)).scalars().all()
+    q_by_key = {q.key: q for q in questions_list}
+
     survey_query = (
         select(SurveyResponse)
+        .options(selectinload(SurveyResponse.job_card).selectinload(JobCard.brand), selectinload(SurveyResponse.job_card).selectinload(JobCard.branch))
         .join(JobCard, SurveyResponse.job_card_id == JobCard.id)
         .where(
             and_(
@@ -114,12 +126,90 @@ async def get_comprehensive_report_data(
     )
     surveys = (await db.execute(survey_query)).scalars().all()
 
-    csat_scores = [float(s.csat_score) for s in surveys if s.csat_score is not None]
-    avg_csat = round(sum(csat_scores) / len(csat_scores), 2) if csat_scores else 0.0
+    survey_csats: List[float] = []
+    promoters = 0
+    passives = 0
+    detractors = 0
+    total_nps_responses = 0
 
-    promoters = len([s for s in surveys if s.nps_category == "PROMOTER"])
-    detractors = len([s for s in surveys if s.nps_category == "DETRACTOR"])
-    total_nps_responses = len([s for s in surveys if s.nps_category])
+    kpi_aggregates: Dict[Tuple[str, Optional[str], Optional[str]], List[float]] = {}
+
+    for s in surveys:
+        # CSAT: Calculate from normalised 0-100 scores in answers (rescaled to 0-5.0)
+        norm_scores: List[float] = []
+        found_nps_val: Optional[float] = None
+
+        if s.answers and isinstance(s.answers, dict):
+            jc = s.job_card
+            brand_name = jc.brand.name if (jc and jc.brand) else None
+            branch_name = jc.branch.name if (jc and jc.branch) else None
+
+            for key, val in s.answers.items():
+                q_def = q_by_key.get(key)
+                kpi_tag = getattr(q_def, "kpi_tag", None) if q_def else None
+
+                # Extract score and raw value
+                score: Optional[float] = None
+                raw_val = val
+                if isinstance(val, dict):
+                    raw_val = val.get("raw", val)
+                    if val.get("score") is not None:
+                        try:
+                            score = float(val["score"])
+                        except (ValueError, TypeError):
+                            pass
+                    if not kpi_tag and val.get("kpi_tag"):
+                        kpi_tag = val["kpi_tag"]
+
+                if score is not None:
+                    norm_scores.append(score)
+                    # Bucket for KPI comparison by brand/branch
+                    kpi_key = (kpi_tag or "SERVICE_QUALITY", brand_name, branch_name)
+                    kpi_aggregates.setdefault(kpi_key, []).append(score)
+
+                # Check if this is a recommend / NPS 0-10 question (by question type, kpi_tag, or text, never hardcoded question key)
+                is_recommend_q = False
+                if q_def:
+                    if (q_def.type or "").lower() in ["nps_10", "nps_0_10"]:
+                        is_recommend_q = True
+                    elif q_def.kpi_tag and "NPS" in q_def.kpi_tag.upper():
+                        is_recommend_q = True
+                    elif "recommend" in (q_def.label or "").lower():
+                        is_recommend_q = True
+                elif "recommend" in key.lower() or "nps" in key.lower():
+                    is_recommend_q = True
+
+                if is_recommend_q and raw_val is not None:
+                    try:
+                        found_nps_val = float(raw_val)
+                    except (ValueError, TypeError):
+                        pass
+
+        if norm_scores:
+            avg_100 = sum(norm_scores) / len(norm_scores)
+            survey_csats.append(round((avg_100 / 100.0) * 5.0, 2))
+        elif s.csat_score is not None:
+            survey_csats.append(float(s.csat_score))
+
+        # NPS aggregation: any 0-10 recommend question
+        if found_nps_val is not None:
+            total_nps_responses += 1
+            if found_nps_val >= 9.0:
+                promoters += 1
+            elif found_nps_val >= 7.0:
+                passives += 1
+            else:
+                detractors += 1
+        elif s.nps_category:
+            total_nps_responses += 1
+            if s.nps_category == "PROMOTER":
+                promoters += 1
+            elif s.nps_category == "DETRACTOR":
+                detractors += 1
+            else:
+                passives += 1
+
+    avg_csat = round(sum(survey_csats) / len(survey_csats), 2) if survey_csats else 0.0
     nps_score = 0.0
     if total_nps_responses > 0:
         nps_score = round(((promoters - detractors) / total_nps_responses) * 100, 1)
@@ -137,6 +227,13 @@ async def get_comprehensive_report_data(
 
     now_utc = datetime.now(timezone.utc)
     sla_compliant_count = 0
+    age_brackets = {
+        "<24h": 0,
+        "24-48h": 0,
+        "48-72h": 0,
+        ">72h": 0,
+    }
+
     for c in all_complaints:
         is_breached = False
         if c.status in ["RESOLVED", "CLOSED"]:
@@ -148,6 +245,44 @@ async def get_comprehensive_report_data(
                 is_breached = True
         if not is_breached:
             sla_compliant_count += 1
+
+    # Complaint Ageing
+    for c in open_comps:
+        c_created = c.created_at if c.created_at.tzinfo else c.created_at.replace(tzinfo=timezone.utc)
+        age_hours = (now_utc - c_created).total_seconds() / 3600.0
+        if age_hours < 24.0:
+            age_brackets["<24h"] += 1
+        elif age_hours < 48.0:
+            age_brackets["24-48h"] += 1
+        elif age_hours < 72.0:
+            age_brackets["48-72h"] += 1
+        else:
+            age_brackets[">72h"] += 1
+
+    complaint_ageing = []
+    for bracket, count in age_brackets.items():
+        pct = round((count / open_complaints_count * 100), 1) if open_complaints_count > 0 else 0.0
+        complaint_ageing.append(
+            ComplaintAgeingItem(
+                age_bracket=bracket,
+                count=count,
+                percentage=pct,
+            )
+        )
+
+    # KPI Comparisons list
+    kpi_comparisons = []
+    for (tag, b_name, br_name), score_list in kpi_aggregates.items():
+        if score_list:
+            kpi_comparisons.append(
+                KpiComparisonItem(
+                    kpi_tag=tag,
+                    brand_name=b_name,
+                    branch_name=br_name,
+                    average_score=round(sum(score_list) / len(score_list), 1),
+                    responses_count=len(score_list),
+                )
+            )
 
     sla_compliance_rate = (
         round((sla_compliant_count / len(all_complaints)) * 100, 1) if all_complaints else 100.0
@@ -377,6 +512,8 @@ async def get_comprehensive_report_data(
         complaint_breakdown=complaint_breakdown,
         branch_leaderboard=branch_leaderboard,
         funnel=funnel,
+        kpi_comparisons=kpi_comparisons,
+        complaint_ageing=complaint_ageing,
     )
 
 

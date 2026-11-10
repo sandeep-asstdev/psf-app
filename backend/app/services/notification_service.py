@@ -41,3 +41,4 @@ class NotificationService:
         await db.flush()
         logger.info(f"Stub notification dispatched via {channel} to {recipient} (template: {template})")
         return log
+

@@ -208,3 +208,4 @@ class RulesEngineService:
             "notifications": resulting_notifications,
             "callback": resulting_callback,
         }
+

@@ -6,7 +6,7 @@ and inspect resolved configs with Redis caching.
 ================================================================================
 """
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from app.models.auth import User
 from app.models.tenant import Brand
 from app.models.questionnaire import Questionnaire, Question, KpiTag
 from app.models.additional import RatingScale, AuditLog
-from app.models.config import FollowUpProgram, ConfigVersion, OutcomeRule
+from app.models.config import FollowUpProgram, ConfigVersion, OutcomeRule, LabelOverride
 from app.services.config_resolver import ConfigResolverService
 from app.services.scoring_service import ScoringService
 from app.services.rules_engine import RulesEngineService
@@ -38,6 +38,10 @@ from app.schemas.config import (
     OutcomeRuleResponse,
     SimulateRequest,
     SimulateResponse,
+    LabelOverrideBase,
+    LabelOverrideCreate,
+    LabelOverrideResponse,
+    LabelOverrideBatch,
 )
 
 router = APIRouter(prefix="/config", tags=["Configuration & Programs"])
@@ -664,3 +668,86 @@ async def simulate_config(
         complaint=rule_results["complaint"],
         notifications=rule_results["notifications"],
     )
+
+
+# -----------------------------------------------------------------------------
+# Dynamic Label Overrides
+# -----------------------------------------------------------------------------
+DEFAULT_SYSTEM_LABELS = {
+    "CRE": "Customer Relationship Executive",
+    "DELIGHT": "Delight",
+    "TNPS": "Follow-up Program",
+    "JOB_CARD": "Job Card",
+    "COMPLAINT": "Customer Complaint",
+}
+
+
+@router.get("/labels", response_model=Dict[str, str])
+async def get_labels(
+    language: str = "en",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(LabelOverride).where(
+        LabelOverride.tenant_id == current_user.tenant_id,
+        LabelOverride.language == language,
+    )
+    overrides = (await db.execute(stmt)).scalars().all()
+    merged = dict(DEFAULT_SYSTEM_LABELS)
+    for ov in overrides:
+        merged[ov.key] = ov.value
+    return merged
+
+
+@router.post("/labels", response_model=Dict[str, str])
+async def upsert_labels(
+    req: LabelOverrideBatch,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    for key, val in req.labels.items():
+        clean_key = key.strip().upper()
+        clean_val = val.strip()
+        stmt = select(LabelOverride).where(
+            LabelOverride.tenant_id == current_user.tenant_id,
+            LabelOverride.key == clean_key,
+            LabelOverride.language == req.language,
+        )
+        existing = (await db.execute(stmt)).scalar_one_or_none()
+        if existing:
+            existing.value = clean_val
+        else:
+            db.add(
+                LabelOverride(
+                    tenant_id=current_user.tenant_id,
+                    key=clean_key,
+                    language=req.language,
+                    value=clean_val,
+                )
+            )
+    await db.commit()
+
+    await ConfigResolverService.invalidate_cache(current_user.tenant_id, "LABELS")
+    return await get_labels(language=req.language, db=db, current_user=current_user)
+
+
+@router.delete("/labels/{key}")
+async def delete_label_override(
+    key: str,
+    language: str = "en",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    clean_key = key.strip().upper()
+    stmt = select(LabelOverride).where(
+        LabelOverride.tenant_id == current_user.tenant_id,
+        LabelOverride.key == clean_key,
+        LabelOverride.language == language,
+    )
+    existing = (await db.execute(stmt)).scalar_one_or_none()
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+        await ConfigResolverService.invalidate_cache(current_user.tenant_id, "LABELS")
+    return {"status": "success", "message": f"Label override for {clean_key} reset to default"}
+

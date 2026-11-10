@@ -245,3 +245,4 @@ async def test_simulate_endpoint(auth_client: AsyncClient):
     for k, v in data["normalized_answers"].items():
         assert "raw" in v
         assert "score" in v
+

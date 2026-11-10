@@ -188,3 +188,29 @@ class SimulateResponse(BaseModel):
     resulting_outcome: Optional[str] = None
     complaint: Optional[Dict[str, Any]] = None
     notifications: List[Dict[str, Any]]
+
+
+class LabelOverrideBase(BaseModel):
+    key: str = Field(..., max_length=100)
+    language: str = Field("en", max_length=10)
+    value: str = Field(..., max_length=255)
+
+
+class LabelOverrideCreate(LabelOverrideBase):
+    pass
+
+
+class LabelOverrideResponse(LabelOverrideBase):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LabelOverrideBatch(BaseModel):
+    labels: Dict[str, str] = Field(..., description="Mapping of label key to customized display value")
+    language: str = Field("en", max_length=10)
+

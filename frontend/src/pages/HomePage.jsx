@@ -42,10 +42,12 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useLabel } from '../hooks/useLabel';
 
 export default function HomePage() {
   const navigate = useNavigate();
   const { user, can } = useAuthStore();
+  const { t } = useLabel();
   const [stats, setStats] = useState(null);
   const [recentQueues, setRecentQueues] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -175,7 +177,7 @@ export default function HomePage() {
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
               <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 dark:text-emerald-200">
-                Ather Energy TNPS Follow-up Calls (By Workshop Branch)
+                Ather Energy {t('TNPS', 'TNPS')} Follow-up Calls (By Workshop Branch)
               </h3>
             </div>
             <button
@@ -270,7 +272,7 @@ export default function HomePage() {
             <table className="min-w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
                 <tr>
-                  <th className="py-2.5 px-3">Job Card No</th>
+                  <th className="py-2.5 px-3">{t('JOB_CARD', 'Job Card')} No</th>
                   <th className="py-2.5 px-3">Date</th>
                   <th className="py-2.5 px-3">Customer Name</th>
                   <th className="py-2.5 px-3">Branch</th>

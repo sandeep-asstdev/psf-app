@@ -87,6 +87,20 @@ class FunnelMetricItem(BaseModel):
     conversion_rate: float
 
 
+class KpiComparisonItem(BaseModel):
+    kpi_tag: str
+    brand_name: Optional[str] = None
+    branch_name: Optional[str] = None
+    average_score: float = 0.0
+    responses_count: int = 0
+
+
+class ComplaintAgeingItem(BaseModel):
+    age_bracket: str
+    count: int = 0
+    percentage: float = 0.0
+
+
 class ComprehensiveReportResponse(BaseModel):
     kpis: ReportKpiSummary
     trends: List[CsatNpsTrendItem]
@@ -95,4 +109,7 @@ class ComprehensiveReportResponse(BaseModel):
     complaint_breakdown: List[ComplaintCategoryBreakdown]
     branch_leaderboard: List[BranchLeaderboardItem]
     funnel: List[FunnelMetricItem]
+    kpi_comparisons: Optional[List[KpiComparisonItem]] = []
+    complaint_ageing: Optional[List[ComplaintAgeingItem]] = []
+
 

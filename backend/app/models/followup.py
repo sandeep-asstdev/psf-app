@@ -173,6 +173,7 @@ class SurveyResponse(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     call: Mapped["Call"] = relationship(back_populates="survey_responses")
+    job_card: Mapped["JobCard"] = relationship(foreign_keys=[job_card_id])
     questionnaire: Mapped["Questionnaire"] = relationship(foreign_keys=[questionnaire_id])
 
     __table_args__ = (

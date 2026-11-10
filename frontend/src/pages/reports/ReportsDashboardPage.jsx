@@ -53,10 +53,12 @@ import {
 } from 'recharts';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+import { useLabel } from '../../hooks/useLabel';
 
 const COLORS = ['#002C6C', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
 export default function ReportsDashboardPage() {
+  const { t } = useLabel();
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState(null);
@@ -145,6 +147,8 @@ export default function ReportsDashboardPage() {
   const advisorScorecards = data?.advisor_scorecards || [];
   const branchLeaderboard = data?.branch_leaderboard || [];
   const funnel = data?.funnel || [];
+  const kpiComparisons = data?.kpi_comparisons || [];
+  const complaintAgeing = data?.complaint_ageing || [];
 
   return (
     <div className="space-y-6 pb-12">
@@ -550,7 +554,7 @@ export default function ReportsDashboardPage() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
         {/* Table Tabs Header */}
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab('branches')}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
@@ -559,7 +563,7 @@ export default function ReportsDashboardPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              Branch Leaderboard ({branchLeaderboard.length})
+              {t('BRANCH', 'Branch')} Leaderboard ({branchLeaderboard.length})
             </button>
             <button
               onClick={() => setActiveTab('advisors')}
@@ -569,7 +573,7 @@ export default function ReportsDashboardPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              Advisor Scorecards ({advisorScorecards.length})
+              {t('ADVISOR', 'Advisor')} Scorecards ({advisorScorecards.length})
             </button>
             <button
               onClick={() => setActiveTab('cre')}
@@ -579,7 +583,27 @@ export default function ReportsDashboardPage() {
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              CRE Productivity ({creProductivity.length})
+              {t('CRE', 'CRE')} Productivity ({creProductivity.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('kpis')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === 'kpis'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              KPI Comparisons ({kpiComparisons.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('ageing')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === 'ageing'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              {t('COMPLAINT', 'Complaint')} Ageing ({complaintAgeing.length})
             </button>
           </div>
 
@@ -694,7 +718,7 @@ export default function ReportsDashboardPage() {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">Caller (CRE)</th>
+                  <th className="py-3 px-4">Caller ({t('CRE', 'CRE')})</th>
                   <th className="py-3 px-4 text-center">Calls Attempted</th>
                   <th className="py-3 px-4 text-center">Connected</th>
                   <th className="py-3 px-4 text-center">Connect Rate (%)</th>
@@ -720,6 +744,92 @@ export default function ReportsDashboardPage() {
                     </td>
                     <td className="py-3.5 px-4 text-center font-mono font-semibold text-amber-600">
                       ★ {cre.csat_recorded}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 4: KPI Comparisons */}
+        {activeTab === 'kpis' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 px-4">KPI Tag</th>
+                  <th className="py-3 px-4">Brand</th>
+                  <th className="py-3 px-4">Branch</th>
+                  <th className="py-3 px-4 text-center">Average Score (0-100)</th>
+                  <th className="py-3 px-4 text-center">Responses</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {kpiComparisons.length > 0 ? (
+                  kpiComparisons.map((kpi, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                      <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-white font-mono">
+                        {kpi.kpi_tag}
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">{kpi.brand_name || 'All Brands'}</td>
+                      <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">{kpi.branch_name || 'All Branches'}</td>
+                      <td className="py-3.5 px-4 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
+                          kpi.average_score >= 80 ? 'bg-emerald-100 text-emerald-800' :
+                          kpi.average_score >= 60 ? 'bg-amber-100 text-amber-800' :
+                          'bg-rose-100 text-rose-800'
+                        }`}>
+                          {kpi.average_score} / 100
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-center font-mono font-medium">{kpi.responses_count}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
+                      No customer responses recorded yet with KPI tag breakdowns.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Tab 5: Complaint Ageing */}
+        {activeTab === 'ageing' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 px-4">Age Bracket</th>
+                  <th className="py-3 px-4 text-center">Open {t('COMPLAINT', 'Complaints')}</th>
+                  <th className="py-3 px-4 text-center">Share (%)</th>
+                  <th className="py-3 px-4">Turnaround Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {complaintAgeing.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-white font-mono">
+                      {item.age_bracket}
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-800 dark:text-slate-100">
+                      {item.count}
+                    </td>
+                    <td className="py-3.5 px-4 text-center font-mono font-semibold text-blue-600 dark:text-blue-400">
+                      {item.percentage}%
+                    </td>
+                    <td className="py-3.5 px-4 text-xs font-medium">
+                      {item.age_bracket === '<24h' ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Healthy (Within Fresh Response Window)</span>
+                      ) : item.age_bracket === '24-48h' ? (
+                        <span className="text-amber-600 dark:text-amber-400 font-semibold">Caution (Approaching Escalation)</span>
+                      ) : (
+                        <span className="text-rose-600 dark:text-rose-400 font-semibold">Critical Breach (Requires Escalation)</span>
+                      )}
                     </td>
                   </tr>
                 ))}

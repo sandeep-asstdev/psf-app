@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -102,5 +103,25 @@ class OutcomeRule(Base):
     __table_args__ = (
         Index("ix_outcome_rules_tenant_brand_priority", "tenant_id", "brand_id", "priority"),
     )
+
+
+class LabelOverride(Base):
+    __tablename__ = "label_overrides"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "key", "language", name="uq_label_override_tenant_key_lang"),
+        Index("idx_label_overrides_tenant_key", "tenant_id", "key"),
+    )
+
 
 

@@ -200,3 +200,4 @@ def downgrade() -> None:
     op.drop_index('uq_kpi_tags_tenant_tag', table_name='kpi_tags')
     op.drop_index('ix_kpi_tags_tenant_id', table_name='kpi_tags')
     op.drop_table('kpi_tags')
+

@@ -1004,8 +1004,8 @@ async def auto_allocate_on_login(
             FollowupQueue.attempts == 0,
             FollowupQueue.is_deleted == False,
         )
-        .order_by(FollowupQueue.due_at)
-        .limit(200)
+        .order_by(FollowupQueue.created_at.desc(), FollowupQueue.due_at)
+        .limit(500)
     )
     unallocated = (await db.execute(stmt)).scalars().all()
     if not unallocated:
