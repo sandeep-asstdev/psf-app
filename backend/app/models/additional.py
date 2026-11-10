@@ -223,3 +223,21 @@ class ConfigChangeHistory(Base):
     __table_args__ = (
         Index("ix_config_history_tenant_type_ver", "tenant_id", "config_type", "version"),
     )
+
+
+class NotificationLog(Base):
+    __tablename__ = "notification_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(20), nullable=False) # WHATSAPP | SMS | EMAIL
+    recipient: Mapped[str] = mapped_column(String(100), nullable=False)
+    template: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="SENT")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_notification_logs_tenant_created", "tenant_id", "created_at"),
+    )
+

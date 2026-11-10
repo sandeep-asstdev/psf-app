@@ -1,17 +1,7 @@
 """
 ================================================================================
 FILE PURPOSE: OEM Rating Scales & Satisfaction Bands Service.
-Maps raw customer numeric scores into manufacturer satisfaction bands
-(e.g. Delight, Satisfied, Dissatisfied) according to brand guidelines.
-
-KEY RESPONSIBILITIES:
-- Defines rating scale rules per OEM (Hyundai 1-10 scale, Tata 1-5 scale).
-- Derives overall sentiment from customer answers (`derive_sentiment_from_score`).
-
-COMMON ERRORS & TROUBLESHOOTING GUIDE:
-- Error: Customer marked Dissatisfied when they gave 9/10
-  -> Cause: Incorrect rating scale configuration in database.
-  -> What should you do: Review rating scale thresholds in Admin Console -> Rating Scales tab.
+Maps customer numeric ratings into satisfaction bands using dynamic scale band definitions.
 ================================================================================
 """
 import uuid
@@ -19,6 +9,20 @@ from typing import Optional, Tuple
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.additional import RatingScale, RatingScaleBand
+
+
+def _resolve_from_scale_list(bands_list, rating: int) -> Tuple[str, bool, bool]:
+    for b in bands_list:
+        min_s = b.get("min_score") if isinstance(b, dict) else b.min_score
+        max_s = b.get("max_score") if isinstance(b, dict) else b.max_score
+        status = b.get("derived_case_status") if isinstance(b, dict) else b.derived_case_status
+        is_delight = b.get("is_delight", False) if isinstance(b, dict) else b.is_delight
+        is_trigger = b.get("is_complaint_trigger", False) if isinstance(b, dict) else b.is_complaint_trigger
+
+        if min_s <= rating <= max_s:
+            return status, is_delight, is_trigger
+
+    return "Dissatisfied", False, True
 
 
 async def derive_case_status_from_db(
@@ -47,16 +51,9 @@ async def derive_case_status_from_db(
     if band:
         return band.derived_case_status, band.is_delight, band.is_complaint_trigger
 
-    # Fallback heuristic if no scale found
-    if rating >= 10:
-        return "Delight", True, False
-    elif rating == 9:
-        # In real Hyundai data, 9 triggers a complaint (e.g. WATSAPP RATING <=9)
-        return "Satisfied", False, True
-    elif rating >= 6:
-        return "Non-Delight", False, True
-    else:
-        return "Dissatisfied", False, True
+    # Fallback to configured default scale bands
+    from app.services.scoring_service import _BRAND_SCALES_CACHE
+    return _resolve_from_scale_list(_BRAND_SCALES_CACHE["HYUN"], rating)
 
 
 def derive_case_status_memory(
@@ -65,34 +62,18 @@ def derive_case_status_memory(
 ) -> Tuple[str, bool, bool]:
     """
     In-memory synchronous version of rating band derivation
-    supporting Hyundai, Tata Motors, and MG Motors rules directly.
+    configured per brand guidelines.
     """
+    from app.services.scoring_service import _BRAND_SCALES_CACHE
+
     brand_clean = (brand_code_or_name or "").upper()
-
     if "TATA" in brand_clean:
-        # Tata: 5 Good, 4 Satisfied, 1-3 Dissatisfied
-        if rating >= 5:
-            return "Delight", True, False
-        elif rating == 4:
-            return "Satisfied", False, False
-        else:
-            return "Dissatisfied", False, True
-
+        bands = _BRAND_SCALES_CACHE["TATA"]
     elif "MG" in brand_clean:
-        # MG: 1-8 Dissatisfied/Poor, 9-10 Satisfied
-        if rating >= 9:
-            return "Satisfied", True, False
-        else:
-            return "Dissatisfied", False, True
-
+        bands = _BRAND_SCALES_CACHE["MG"]
+    elif "ATHER" in brand_clean:
+        bands = _BRAND_SCALES_CACHE["ATHER"]
     else:
-        # Hyundai (default): 1-5 Poor, 6-8 Average, 9 Satisfied (triggers complaint in real data), 10 Delight
-        if rating >= 10:
-            return "Delight", True, False
-        elif rating == 9:
-            return "Satisfied", False, True
-        elif rating >= 6:
-            return "Non-Delight", False, True
-        else:
-            return "Dissatisfied", False, True
+        bands = _BRAND_SCALES_CACHE["HYUN"]
 
+    return _resolve_from_scale_list(bands, rating)

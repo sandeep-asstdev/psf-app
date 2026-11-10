@@ -16,10 +16,12 @@ from app.core.database import get_db
 from app.api.deps import get_current_active_user as get_current_user
 from app.models.auth import User
 from app.models.tenant import Brand
-from app.models.questionnaire import Questionnaire
+from app.models.questionnaire import Questionnaire, Question, KpiTag
 from app.models.additional import RatingScale, AuditLog
-from app.models.config import FollowUpProgram, ConfigVersion
+from app.models.config import FollowUpProgram, ConfigVersion, OutcomeRule
 from app.services.config_resolver import ConfigResolverService
+from app.services.scoring_service import ScoringService
+from app.services.rules_engine import RulesEngineService
 from app.schemas.config import (
     FollowUpProgramCreate,
     FollowUpProgramUpdate,
@@ -29,6 +31,13 @@ from app.schemas.config import (
     ConfigPublishRequest,
     ConfigRollbackRequest,
     ConfigVersionResponse,
+    KpiTagCreate,
+    KpiTagResponse,
+    OutcomeRuleCreate,
+    OutcomeRuleUpdate,
+    OutcomeRuleResponse,
+    SimulateRequest,
+    SimulateResponse,
 )
 
 router = APIRouter(prefix="/config", tags=["Configuration & Programs"])
@@ -412,3 +421,246 @@ async def resolve_config_endpoint(
         brand_id=brand_id,
     )
     return {"config_type": config_type, "brand_id": brand_id, "config": resolved}
+
+
+# -----------------------------------------------------------------------------
+# KPI Tags Endpoints
+# -----------------------------------------------------------------------------
+@router.get("/kpi-tags", response_model=List[KpiTagResponse])
+async def list_kpi_tags(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(KpiTag).where(KpiTag.tenant_id == current_user.tenant_id).order_by(KpiTag.label.asc())
+    tags = (await db.execute(stmt)).scalars().all()
+    return tags
+
+
+@router.post("/kpi-tags", response_model=KpiTagResponse, status_code=status.HTTP_201_CREATED)
+async def create_kpi_tag(
+    payload: KpiTagCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    tag_clean = payload.tag.upper().strip().replace(" ", "_")
+    existing_stmt = select(KpiTag).where(KpiTag.tenant_id == current_user.tenant_id, KpiTag.tag == tag_clean)
+    existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"KPI Tag '{tag_clean}' already exists")
+
+    kpi = KpiTag(
+        tenant_id=current_user.tenant_id,
+        tag=tag_clean,
+        label=payload.label.strip(),
+        description=payload.description,
+        is_active=payload.is_active,
+    )
+    db.add(kpi)
+    await db.commit()
+    await db.refresh(kpi)
+    return kpi
+
+
+# -----------------------------------------------------------------------------
+# Outcome Rules Endpoints
+# -----------------------------------------------------------------------------
+@router.get("/rules", response_model=List[OutcomeRuleResponse])
+async def list_outcome_rules(
+    brand_id: Optional[uuid.UUID] = Query(None),
+    program_id: Optional[uuid.UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(OutcomeRule).where(OutcomeRule.tenant_id == current_user.tenant_id)
+    if brand_id:
+        stmt = stmt.where(OutcomeRule.brand_id == brand_id)
+    if program_id:
+        stmt = stmt.where(OutcomeRule.program_id == program_id)
+
+    stmt = stmt.order_by(OutcomeRule.priority.asc(), OutcomeRule.created_at.asc())
+    rules = (await db.execute(stmt)).scalars().all()
+    return rules
+
+
+@router.post("/rules", response_model=OutcomeRuleResponse, status_code=status.HTTP_201_CREATED)
+async def create_outcome_rule(
+    payload: OutcomeRuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rule = OutcomeRule(
+        tenant_id=current_user.tenant_id,
+        brand_id=payload.brand_id,
+        program_id=payload.program_id,
+        name=payload.name.strip(),
+        enabled=payload.enabled,
+        priority=payload.priority,
+        conditions=payload.conditions,
+        actions=payload.actions,
+    )
+    db.add(rule)
+    audit = AuditLog(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action="OUTCOME_RULE_CREATED",
+        entity_type="OUTCOME_RULE",
+        entity_id=str(rule.id),
+        new_values=payload.model_dump(mode="json"),
+        reason=f"Created outcome rule: {payload.name}",
+    )
+    db.add(audit)
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+@router.put("/rules/{rule_id}", response_model=OutcomeRuleResponse)
+async def update_outcome_rule(
+    rule_id: uuid.UUID,
+    payload: OutcomeRuleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(OutcomeRule).where(OutcomeRule.id == rule_id, OutcomeRule.tenant_id == current_user.tenant_id)
+    rule = (await db.execute(stmt)).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Outcome rule not found")
+
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(rule, k, v)
+
+    audit = AuditLog(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action="OUTCOME_RULE_UPDATED",
+        entity_type="OUTCOME_RULE",
+        entity_id=str(rule.id),
+        new_values=payload.model_dump(exclude_unset=True, mode="json"),
+        reason=f"Updated outcome rule: {rule.name}",
+    )
+    db.add(audit)
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+@router.delete("/rules/{rule_id}")
+async def delete_outcome_rule(
+    rule_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    stmt = select(OutcomeRule).where(OutcomeRule.id == rule_id, OutcomeRule.tenant_id == current_user.tenant_id)
+    rule = (await db.execute(stmt)).scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Outcome rule not found")
+
+    await db.delete(rule)
+    audit = AuditLog(
+        tenant_id=current_user.tenant_id,
+        user_id=current_user.id,
+        action="OUTCOME_RULE_DELETED",
+        entity_type="OUTCOME_RULE",
+        entity_id=str(rule.id),
+        reason=f"Deleted outcome rule: {rule.name}",
+    )
+    db.add(audit)
+    await db.commit()
+    return {"status": "success", "message": "Outcome rule deleted"}
+
+
+# -----------------------------------------------------------------------------
+# Configuration Simulator (Sample Job Card + Answers -> Outcome, nothing saved)
+# -----------------------------------------------------------------------------
+@router.post("/simulate", response_model=SimulateResponse)
+async def simulate_config(
+    req: SimulateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    brand_code = None
+    brand_id = req.brand_id
+
+    if brand_id:
+        b_stmt = select(Brand).where(Brand.id == brand_id, Brand.tenant_id == current_user.tenant_id)
+        brand_obj = (await db.execute(b_stmt)).scalar_one_or_none()
+        if brand_obj:
+            brand_code = brand_obj.code
+
+    # 1. Fetch relevant questionnaire questions for the brand / program
+    q_stmt = select(Questionnaire).options(selectinload(Questionnaire.questions)).where(
+        Questionnaire.tenant_id == current_user.tenant_id,
+    )
+    if brand_id:
+        q_stmt = q_stmt.where(Questionnaire.brand_id == brand_id)
+    questionnaires = (await db.execute(q_stmt)).scalars().all()
+    questions: List[Question] = []
+    if questionnaires:
+        questions = questionnaires[0].questions
+
+    # 2. Process and normalize answers
+    normalized_answers, kpi_buckets = ScoringService.process_and_normalize_answers(req.answers, questions)
+
+    # 3. Aggregate KPI scores
+    kpi_scores: Dict[str, float] = {}
+    for tag, scores in kpi_buckets.items():
+        if scores:
+            kpi_scores[tag] = round(sum(scores) / len(scores), 2)
+
+    # 4. Calculate overall result
+    overall_score, nps_score, nps_cat = ScoringService.calculate_overall_result(
+        normalized_answers=normalized_answers,
+        questions=questions,
+        method=req.scoring_method,
+    )
+
+    # 5. Derive base outcome status from brand bands
+    case_status, is_delight, is_trigger = await ScoringService.resolve_bands_and_outcome(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        brand_id=brand_id,
+        brand_code=brand_code,
+        overall_score=overall_score,
+        raw_rating=nps_score,
+    )
+
+    # 6. Evaluate Rules Engine in dry_run mode
+    job_card_data = req.job_card or {}
+    eval_context = {
+        "overall_score": overall_score,
+        "kpi_scores": kpi_scores,
+        "answers": normalized_answers,
+        "service_type": job_card_data.get("service_type", "Periodic Maintenance Service"),
+        "branch_id": job_card_data.get("branch_id"),
+        "branch_code": job_card_data.get("branch_code", "APEX-HUBLI"),
+        "total_amount": float(job_card_data.get("total_amount", 5000.0)),
+    }
+
+    rule_results = await RulesEngineService.evaluate_rules(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        brand_id=brand_id,
+        program_id=req.program_id,
+        context=eval_context,
+        dry_run=True,
+    )
+
+    final_case_status = rule_results["outcome_status"] or case_status
+    if rule_results["complaint"]:
+        is_trigger = True
+
+    return SimulateResponse(
+        overall_score=overall_score,
+        csat_score=overall_score,
+        nps_score=nps_score,
+        nps_category=nps_cat,
+        derived_case_status=final_case_status,
+        is_delight=is_delight,
+        is_complaint_trigger=is_trigger,
+        kpi_scores=kpi_scores,
+        normalized_answers=normalized_answers,
+        rules_matched=rule_results["matched_rules"],
+        resulting_outcome=final_case_status,
+        complaint=rule_results["complaint"],
+        notifications=rule_results["notifications"],
+    )

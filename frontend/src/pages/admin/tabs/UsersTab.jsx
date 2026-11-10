@@ -374,3 +374,4 @@ export default function UsersTab({ isSuperAdmin }) {
     </div>
   );
 }
+

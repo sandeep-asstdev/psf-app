@@ -26,7 +26,7 @@ from app.models.auth import Role, RolePermission, User, UserScope, LoginLog
 from app.models.customer import Customer, Vehicle
 from app.models.service import ImportBatch, JobCard, ServiceType
 from app.models.followup import FollowupQueue, Call, CallAttempt, CallStatus, CaseStatus, SurveyResponse, Reminder
-from app.models.questionnaire import Questionnaire, Question
+from app.models.questionnaire import Questionnaire, Question, KpiTag
 from app.models.complaint import ComplaintCategory, Complaint, ComplaintEvent, Reconfirmation
 from app.models.allocation import (
     AttendanceOverride,
@@ -44,8 +44,9 @@ from app.models.additional import (
     CustomFieldDefinition,
     ImportMappingTemplate,
     ConfigChangeHistory,
+    NotificationLog,
 )
-from app.models.config import ConfigVersion, FollowUpProgram
+from app.models.config import ConfigVersion, FollowUpProgram, OutcomeRule
 
 __all__ = [
     "Base",

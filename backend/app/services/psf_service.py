@@ -45,6 +45,8 @@ from app.schemas.psf import (
 )
 from app.schemas.questionnaire import QuestionnaireDetailResponse, QuestionResponse
 from app.services.questionnaire_service import calculate_survey_score, get_questionnaire_by_id
+from app.services.scoring_service import ScoringService
+from app.services.rules_engine import RulesEngineService
 
 
 async def get_dashboard_stats(
@@ -707,32 +709,50 @@ async def submit_call_log(
         if q_model:
             q_full = await get_questionnaire_by_id(db, tenant_id, q_model.id)
             if q_full and q_full.questions:
-                # Normalize survey answers (e.g. Yes/No)
-                normalized_answers = {}
-                for k, v in payload.survey_answers.items():
-                    if isinstance(v, str):
-                        if v.lower() in ("yes", "y", "true"):
-                            normalized_answers[k] = "Yes"
-                        elif v.lower() in ("no", "n", "false"):
-                            normalized_answers[k] = "No"
-                        else:
-                            normalized_answers[k] = v
-                    else:
-                        normalized_answers[k] = v
+                # Normalize survey answers with scoring service (stores raw + normalized 0-100 score)
+                normalized_answers, kpi_buckets = ScoringService.process_and_normalize_answers(
+                    payload.survey_answers, q_full.questions
+                )
 
-                csat, nps_val, nps_cat = calculate_survey_score(normalized_answers, q_full.questions)
+                csat, nps_val, nps_cat = ScoringService.calculate_overall_result(
+                    normalized_answers, q_full.questions
+                )
 
                 survey_resp = SurveyResponse(
                     tenant_id=tenant_id,
                     call_id=call.id,
                     job_card_id=jc.id,
                     questionnaire_id=q_full.id,
+                    questionnaire_version=getattr(q_full, "version", 1) or 1,
                     answers=normalized_answers,
                     csat_score=csat,
                     nps_score=nps_val,
                     nps_category=nps_cat,
                 )
                 db.add(survey_resp)
+
+                # Evaluate outcome rules
+                eval_context = {
+                    "overall_score": csat,
+                    "kpi_scores": {k: round(sum(v)/len(v), 2) for k, v in kpi_buckets.items() if v},
+                    "answers": normalized_answers,
+                    "service_type": getattr(jc, "service_type_code", None),
+                    "branch_id": jc.branch_id,
+                    "total_amount": float(jc.total_amount or 0.0),
+                }
+                rule_results = await RulesEngineService.evaluate_rules(
+                    db=db,
+                    tenant_id=tenant_id,
+                    brand_id=jc.brand_id,
+                    program_id=getattr(queue, "program_id", None),
+                    context=eval_context,
+                    dry_run=False,
+                )
+                if rule_results.get("outcome_status"):
+                    payload.case_status = rule_results["outcome_status"]
+                if rule_results.get("complaint") and not payload.has_complaint:
+                    payload.has_complaint = True
+                    payload.complaint_desc = rule_results["complaint"].get("description", "Auto-triggered by rule")
 
     # 3. Handle Complaint creation if checked
     complaint_ticket = None

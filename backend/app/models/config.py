@@ -78,3 +78,29 @@ class FollowUpProgram(Base):
     __table_args__ = (
         Index("ix_follow_up_programs_tenant_brand_order", "tenant_id", "brand_id", "sort_order"),
     )
+
+
+class OutcomeRule(Base):
+    __tablename__ = "outcome_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid7)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    brand_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("brands.id", ondelete="CASCADE"), nullable=True, index=True)
+    program_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("follow_up_programs.id", ondelete="CASCADE"), nullable=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    conditions: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    actions: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("Tenant", foreign_keys=[tenant_id])
+    brand = relationship("Brand", foreign_keys=[brand_id])
+    program = relationship("FollowUpProgram", foreign_keys=[program_id])
+
+    __table_args__ = (
+        Index("ix_outcome_rules_tenant_brand_priority", "tenant_id", "brand_id", "priority"),
+    )
+
+

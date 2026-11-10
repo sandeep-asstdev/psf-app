@@ -23,6 +23,8 @@ import {
   History,
   Wrench,
   SplitSquareVertical,
+  Tag,
+  Sparkles,
 } from 'lucide-react';
 
 import RolesMatrixTab from './tabs/RolesMatrixTab';
@@ -39,6 +41,8 @@ import ImportTemplatesTab from './tabs/ImportTemplatesTab';
 import TemplatesSettingsTab from './tabs/TemplatesSettingsTab';
 import AuditHistoryTab from './tabs/AuditHistoryTab';
 import DataCorrectionTab from './tabs/DataCorrectionTab';
+import KpiTagsTab from './tabs/KpiTagsTab';
+import OutcomeRulesTab from './tabs/OutcomeRulesTab';
 
 import { useAuthStore } from '../../store/authStore';
 
@@ -52,6 +56,8 @@ export default function AdminConsolePage() {
   // Tab definitions: strictly filter based on dynamic permissions
   const availableTabs = [
     { id: 'programs', label: 'Follow-Up Programs', icon: CalendarCheck, visible: isSuperAdmin || can('config.manage') || can('program.manage') },
+    { id: 'kpi_tags', label: 'KPI Tags', icon: Tag, visible: isSuperAdmin || can('config.manage') },
+    { id: 'outcome_rules', label: 'Outcome Rules', icon: Sparkles, visible: isSuperAdmin || can('config.manage') },
     { id: 'matrix', label: 'Roles & Matrix', icon: Key, visible: isSuperAdmin || can('role.manage') || can('permission.manage') },
     { id: 'brands_branches', label: 'Brands & Branches', icon: Building2, visible: isSuperAdmin || can('brand.manage') || can('branch.manage') },
     { id: 'users', label: 'Users & Simulation', icon: Users, visible: isSuperAdmin || can('user.create') || can('user.edit') },
@@ -112,6 +118,8 @@ export default function AdminConsolePage() {
       {/* Active Tab Content */}
       <div className="pt-2">
         {activeTab === 'programs' && <ProgramsTab />}
+        {activeTab === 'kpi_tags' && <KpiTagsTab />}
+        {activeTab === 'outcome_rules' && <OutcomeRulesTab />}
         {activeTab === 'matrix' && <RolesMatrixTab isSuperAdmin={isSuperAdmin} />}
         {activeTab === 'brands_branches' && <BrandsBranchesTab />}
         {activeTab === 'users' && <UsersTab isSuperAdmin={isSuperAdmin} />}

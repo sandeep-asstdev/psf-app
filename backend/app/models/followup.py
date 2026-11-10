@@ -161,6 +161,7 @@ class SurveyResponse(Base):
     call_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("calls.id", ondelete="CASCADE"), nullable=False, index=True)
     job_card_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("job_cards.id", ondelete="CASCADE"), nullable=False, index=True)
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("questionnaires.id"), nullable=False, index=True)
+    questionnaire_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     answers: Mapped[dict] = mapped_column(JSONB, nullable=False) # Dynamic answers payload
     csat_score: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2), nullable=True)
     nps_score: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
