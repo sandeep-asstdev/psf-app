@@ -101,3 +101,4 @@ async def test_dynamic_reports_kpi_tags_and_scores():
         assert "24-48h" in brackets
         assert "48-72h" in brackets
         assert ">72h" in brackets
+

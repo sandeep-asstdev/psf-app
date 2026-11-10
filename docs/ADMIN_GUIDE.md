@@ -311,4 +311,52 @@ When an uploaded file contains invalid rows, the batch **continues processing va
 * **Duplicate Skip vs Update**: If a Job Card was already imported, it is safely skipped by default to avoid duplicate calling queues. If customer details changed, choose **Update Existing** to refresh phone and customer records.
 * **Fix and Re-Upload**: After fixing defects in your source spreadsheet, simply re-upload the file. Any previously imported rows will be identified as duplicates and skipped, while newly corrected rows will import and generate call queues seamlessly.
 
+---
+
+## 11. Configurable PSF Administration Guide
+
+PSF behavior is fully configurable per dealership and brand without code modifications.
+
+### 11.1 Adding a Follow-Up Program
+1. Navigate to **Admin Console** -> **Programs** tab.
+2. Click **Add Program** and configure:
+   * **Program Code & Label**: e.g., `PSF_WAPP`, `Post-Service WhatsApp Follow-up` (or Ather's `TNPS`).
+   * **Trigger**: `ON_IMPORT` (immediate queue creation), `AFTER_DAYS(n)` (deferred by $n$ days), or `AFTER_COMPLAINT_CLOSURE`.
+   * **Channel**: `PHONE`, `WHATSAPP`, or `BOTH`.
+   * **Timing & SLA**: `max_attempts` (e.g., 3), `retry_gap_hours` (e.g., 4), and `sla_hours` (e.g., 48).
+   * **Linked Questionnaire & Scale**: Select questionnaire template and rating scale.
+3. Toggle **Enabled** and save. The program takes effect immediately for newly imported job cards.
+
+### 11.2 Adding Questions and KPI Tags
+1. Under **Admin Console** -> **Questionnaires**:
+   * Create questions with supported answer types: `YES_NO`, `YES_NO_NA`, `RATING` (configurable min/max), `NPS_0_10`, `SINGLE_SELECT`, `MULTI_SELECT`, `TEXT`, `NUMBER`, `FILE_UPLOAD`.
+   * Assign a **KPI Tag** (managed in **KPI Tags** tab, e.g., `advisor`, `cleanliness`, `timeliness`, `recommend`).
+   * Configure `complaint_trigger_below` (e.g., score < 3) or `ask_reason_below`.
+2. Answers are automatically recorded with raw values and normalized 0–100 scores.
+
+### 11.3 Adding Outcome Rules
+1. Navigate to **Admin Console** -> **Outcome Rules** tab.
+2. Build rules using JSON condition logic:
+   * **IF conditions**: Match score thresholds (`score < 70`), specific KPI tag scores (`kpi_tag: advisor <= 3`), service types, or bill amounts.
+   * **THEN actions**: Auto-trigger complaints (`category`, `severity`), set case outcome status (`Dissatisfied`, `Satisfied`), assign to specific role/user, or dispatch notifications.
+3. Test rules in real-time using the **Rule Simulator** panel (`POST /config/simulate`) before publishing.
+
+### 11.4 Customizing Terminology with Labels
+1. Open **Admin Console** -> **Labels** tab.
+2. Override system terms per tenant (e.g., replace `CRE` with `Customer Champion`, `Delight` with `Extremely Satisfied`, `TNPS` with `Ather Experience Index`).
+3. Overrides apply across all frontend pages via `useLabel("term")`.
+
+### 11.5 Managing Config Packs
+1. Standard packs are stored in `backend/app/db/packs/` (`blank.json`, `hyundai.json`, `tata.json`, `mg.json`, `ather.json`).
+2. Use **Onboarding Wizard** (`POST /api/v1/config/dealerships/wizard`) to spin up a new tenant with branches, users, and a cloned pack in one step.
+3. Dealership configurations can be backed up or cloned via **Export** (`GET /api/v1/config/dealership/export`) and **Import** (`POST /api/v1/config/dealership/import`).
+
+### 11.6 What Stays in Code
+The following aspects intentionally stay in code and are **not** dynamic JSON configs:
+* **Core Data Entities & Relational Schema**: JobCard, FollowupQueue, CallAttempt, Complaint, Customer, Vehicle, User, Branch.
+* **State Machine & Queue Lifecycle**: Transition states (`PENDING`, `SCHEDULED`, `CALLED`, `RESOLVED`, `EXPIRED`, `ESCALATED`) and attempt tracking logic.
+* **Integrations**: DMS adapter parsing, Telephony PBX/CTI connectors, MinIO object storage, SMS/WhatsApp gateway client SDKs.
+* **New UI Widget & Input Types**: Native React frontend components for new custom answer widgets beyond existing core types.
+
+
 

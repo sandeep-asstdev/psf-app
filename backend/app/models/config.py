@@ -124,4 +124,20 @@ class LabelOverride(Base):
     )
 
 
+class ConfigPack(Base):
+    __tablename__ = "config_packs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    version: Mapped[str] = mapped_column(String(20), default="1.0.0", nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    brand_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    payload: Mapped[Dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    is_builtin: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+
 

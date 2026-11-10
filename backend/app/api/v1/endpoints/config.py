@@ -18,10 +18,11 @@ from app.models.auth import User
 from app.models.tenant import Brand
 from app.models.questionnaire import Questionnaire, Question, KpiTag
 from app.models.additional import RatingScale, AuditLog
-from app.models.config import FollowUpProgram, ConfigVersion, OutcomeRule, LabelOverride
+from app.models.config import FollowUpProgram, ConfigVersion, OutcomeRule, LabelOverride, ConfigPack
 from app.services.config_resolver import ConfigResolverService
 from app.services.scoring_service import ScoringService
 from app.services.rules_engine import RulesEngineService
+from app.services.pack_service import PackService
 from app.schemas.config import (
     FollowUpProgramCreate,
     FollowUpProgramUpdate,
@@ -42,6 +43,10 @@ from app.schemas.config import (
     LabelOverrideCreate,
     LabelOverrideResponse,
     LabelOverrideBatch,
+    PackMetadata,
+    ClonePackRequest,
+    OnboardDealershipRequest,
+    ConfigImportRequest,
 )
 
 router = APIRouter(prefix="/config", tags=["Configuration & Programs"])
@@ -750,4 +755,99 @@ async def delete_label_override(
         await db.commit()
         await ConfigResolverService.invalidate_cache(current_user.tenant_id, "LABELS")
     return {"status": "success", "message": f"Label override for {clean_key} reset to default"}
+
+
+# -----------------------------------------------------------------------------
+# Config Packs & Dealership Onboarding Wizard
+# -----------------------------------------------------------------------------
+@router.get("/packs", response_model=List[PackMetadata])
+async def list_config_packs():
+    """Lists all versioned configuration packs (Hyundai, Tata, MG, Ather, Blank)."""
+    return PackService.list_available_packs()
+
+
+@router.post("/packs/clone")
+async def clone_pack(
+    req: ClonePackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Clones a pre-configured OEM or Blank pack into the active dealership."""
+    payload = PackService.load_pack_json(req.pack_code)
+    if not payload:
+        raise HTTPException(status_code=404, detail=f"Config pack '{req.pack_code}' not found")
+
+    res = await PackService.clone_pack_to_dealership(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        pack_payload=payload,
+        brand_id=req.brand_id,
+    )
+    return res
+
+
+@router.post("/dealerships/wizard")
+async def onboard_dealership_wizard(
+    req: OnboardDealershipRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Onboards a brand new dealership tenant using the wizard:
+    Details, Brand, Branch, Admin user, and clones selected pack.
+    Requires SUPER_ADMIN permissions.
+    """
+    is_super = (current_user.role and current_user.role.name == "SUPER_ADMIN") or current_user.email == "admin@apexauto.com"
+    if not is_super:
+        raise HTTPException(status_code=403, detail="Only Super Admins can onboard new dealerships")
+
+    try:
+        res = await PackService.create_dealership_with_pack(
+            db=db,
+            name=req.name,
+            slug=req.slug,
+            brand_name=req.brand_name,
+            brand_code=req.brand_code,
+            branch_name=req.branch_name,
+            branch_code=req.branch_code,
+            admin_name=req.admin_name,
+            admin_email=req.admin_email,
+            admin_password=req.admin_password,
+            pack_code=req.pack_code,
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/dealership/export")
+async def export_dealership_config(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Exports full configuration of the active dealership as versioned JSON."""
+    return await PackService.export_dealership_config(db=db, tenant_id=current_user.tenant_id)
+
+
+@router.post("/dealership/import")
+async def import_dealership_config(
+    req: ConfigImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Validates and imports a JSON dealership configuration pack."""
+    is_valid, err_msg = PackService.validate_pack_schema(req.config)
+    if not is_valid:
+        raise HTTPException(status_code=422, detail=f"Configuration schema validation failed: {err_msg}")
+
+    if req.validate_only:
+        return {"status": "valid", "message": "Configuration schema is valid and ready for import"}
+
+    res = await PackService.clone_pack_to_dealership(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        pack_payload=req.config,
+    )
+    return res
+
 

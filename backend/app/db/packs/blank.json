@@ -1,0 +1,41 @@
+{
+  "pack_version": "1.0.0",
+  "name": "Blank Starter Pack",
+  "brand_code": "CUSTOM",
+  "description": "Empty starter pack for fresh dealership configuration with minimal defaults",
+  "programs": [
+    {
+      "code": "PSF",
+      "label": "Post Service Follow-up",
+      "enabled": true,
+      "trigger": "ON_IMPORT",
+      "channel": "PHONE",
+      "max_attempts": 3,
+      "retry_gap_hours": 24,
+      "sla_hours": 72,
+      "sort_order": 1
+    }
+  ],
+  "questionnaires": [],
+  "scales": [
+    {
+      "name": "Standard 1-5 Star Scale",
+      "scale_type": "RATING_5",
+      "min_val": 1,
+      "max_val": 5,
+      "bands": [
+        {"name": "Delight", "status": "DELIGHT", "min_val": 5, "max_val": 5},
+        {"name": "Satisfied", "status": "SATISFIED", "min_val": 4, "max_val": 4},
+        {"name": "Dissatisfied", "status": "DISSATISFIED", "min_val": 1, "max_val": 3}
+      ]
+    }
+  ],
+  "rules": [],
+  "labels": {
+    "CRE": "Calling Specialist",
+    "DELIGHT": "Delight",
+    "TNPS": "Follow-up Program",
+    "JOB_CARD": "Job Card",
+    "COMPLAINT": "Customer Complaint"
+  }
+}

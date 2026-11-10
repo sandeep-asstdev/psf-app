@@ -1,0 +1,91 @@
+{
+  "pack_version": "1.0.0",
+  "name": "Tata Motors Dealership Pack",
+  "brand_code": "TATA",
+  "description": "Tata Motors Passenger Vehicles follow-up configuration with 1-10 rating scale and VOC capture",
+  "programs": [
+    {
+      "code": "PSF",
+      "label": "Tata Motors PSF Survey",
+      "enabled": true,
+      "trigger": "ON_IMPORT",
+      "channel": "PHONE",
+      "max_attempts": 3,
+      "retry_gap_hours": 24,
+      "sla_hours": 72,
+      "sort_order": 1
+    },
+    {
+      "code": "HAPPINESS",
+      "label": "Tata 15-Day Happiness Calling",
+      "enabled": true,
+      "trigger": "AFTER_DAYS(15)",
+      "channel": "PHONE",
+      "max_attempts": 2,
+      "retry_gap_hours": 48,
+      "sla_hours": 96,
+      "sort_order": 2
+    }
+  ],
+  "questionnaires": [
+    {
+      "type": "PSF",
+      "title": "Tata Motors 7-Question PSF Survey",
+      "questions": [
+        {
+          "key": "tata_rating_overall",
+          "label": "Overall satisfaction with Tata Motors workshop service (1-10)",
+          "type": "nps_10",
+          "kpi_tag": "OVERALL_EXPERIENCE",
+          "complaint_trigger_below": 7,
+          "rating_min": 1,
+          "rating_max": 10
+        },
+        {
+          "key": "tata_repair_quality",
+          "label": "Were all reported issues repaired completely right the first time?",
+          "type": "yes_no",
+          "kpi_tag": "SERVICE_QUALITY",
+          "complaint_trigger_below": 1
+        },
+        {
+          "key": "tata_advisor_courtesy",
+          "label": "Service advisor behavior and responsiveness",
+          "type": "rating",
+          "kpi_tag": "SERVICE_ADVISOR",
+          "rating_min": 1,
+          "rating_max": 5
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "Tata Motors 1-10 Scale",
+      "scale_type": "NPS_10",
+      "min_val": 1,
+      "max_val": 10,
+      "bands": [
+        {"name": "Delight", "status": "DELIGHT", "min_val": 9, "max_val": 10},
+        {"name": "Satisfied", "status": "SATISFIED", "min_val": 7, "max_val": 8},
+        {"name": "Dissatisfied", "status": "DISSATISFIED", "min_val": 1, "max_val": 6}
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "name": "Tata Low Overall Rating Complaint",
+      "enabled": true,
+      "priority": 1,
+      "conditions": {"score": {"lte": 60}},
+      "actions": {"create_complaint": {"severity": "HIGH", "category": "Tata Service Quality"}}
+    }
+  ],
+  "labels": {
+    "CRE": "Customer Care Executive",
+    "DELIGHT": "Delight",
+    "TNPS": "Follow-up Program",
+    "JOB_CARD": "Job Card",
+    "COMPLAINT": "Customer Grievance"
+  }
+}

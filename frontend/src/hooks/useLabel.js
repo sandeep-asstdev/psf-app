@@ -34,3 +34,4 @@ export function useLabel(term = null, defaultFallback = null) {
 }
 
 export default useLabel;
+

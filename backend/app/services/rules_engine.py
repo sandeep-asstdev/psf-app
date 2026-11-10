@@ -76,7 +76,9 @@ class RulesEngineService:
         if "score" in conditions:
             c = conditions["score"]
             actual = context.get("overall_score")
-            if not cls._evaluate_operator(actual, c.get("operator", "<="), c.get("value")):
+            op = c.get("operator") or ("<=" if ("score_lte" in c or "lte" in c) else (">=" if ("score_gte" in c or "gte" in c) else "=="))
+            val = c.get("value") if c.get("value") is not None else (c.get("score_lte") or c.get("lte") or c.get("score_gte") or c.get("gte"))
+            if not cls._evaluate_operator(actual, op, val):
                 return False
 
         # Condition: kpi_tag score
@@ -85,7 +87,9 @@ class RulesEngineService:
             tag = c.get("tag")
             kpi_scores = context.get("kpi_scores", {})
             actual = kpi_scores.get(tag)
-            if not cls._evaluate_operator(actual, c.get("operator", "<="), c.get("value")):
+            op = c.get("operator") or ("<=" if ("score_lte" in c or "lte" in c) else (">=" if ("score_gte" in c or "gte" in c) else "=="))
+            val = c.get("value") if c.get("value") is not None else (c.get("score_lte") or c.get("lte") or c.get("score_gte") or c.get("gte"))
+            if not cls._evaluate_operator(actual, op, val):
                 return False
 
         # Condition: question answer

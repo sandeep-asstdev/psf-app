@@ -1,0 +1,98 @@
+{
+  "pack_version": "1.0.0",
+  "name": "Ather Energy Pack",
+  "brand_code": "ATHER",
+  "description": "Ather Energy OEM follow-up configuration with TNPS calling program and NPS 0-10 rating",
+  "programs": [
+    {
+      "code": "TNPS",
+      "label": "Ather TNPS Follow-up Survey",
+      "enabled": true,
+      "trigger": "ON_IMPORT",
+      "channel": "PHONE",
+      "max_attempts": 3,
+      "retry_gap_hours": 24,
+      "sla_hours": 48,
+      "sort_order": 1
+    },
+    {
+      "code": "RECONFIRMATION",
+      "label": "Post-Complaint Reconfirmation",
+      "enabled": true,
+      "trigger": "AFTER_COMPLAINT_CLOSURE",
+      "channel": "PHONE",
+      "max_attempts": 2,
+      "retry_gap_hours": 24,
+      "sla_hours": 48,
+      "sort_order": 2
+    }
+  ],
+  "questionnaires": [
+    {
+      "type": "PSF",
+      "title": "Ather Energy TNPS Survey",
+      "questions": [
+        {
+          "key": "ather_recommend_nps",
+          "label": "On a scale of 0 to 10, how likely are you to recommend Ather service to friends and colleagues?",
+          "type": "nps_0_10",
+          "kpi_tag": "NPS",
+          "complaint_trigger_below": 7,
+          "rating_min": 0,
+          "rating_max": 10
+        },
+        {
+          "key": "ather_charging_experience",
+          "label": "Was your vehicle charged to committed level upon delivery?",
+          "type": "yes_no",
+          "kpi_tag": "SERVICE_QUALITY",
+          "complaint_trigger_below": 1
+        },
+        {
+          "key": "ather_ota_software",
+          "label": "Were all OTA software updates and dashboard diagnostics explained?",
+          "type": "yes_no",
+          "kpi_tag": "SERVICE_ADVISOR",
+          "complaint_trigger_below": 1
+        },
+        {
+          "key": "ather_overall_satisfaction",
+          "label": "Overall workshop experience rating (1 to 5)",
+          "type": "rating",
+          "kpi_tag": "OVERALL_EXPERIENCE",
+          "rating_min": 1,
+          "rating_max": 5
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "Ather TNPS 0-10 Scale",
+      "scale_type": "NPS_0_10",
+      "min_val": 0,
+      "max_val": 10,
+      "bands": [
+        {"name": "Promoter (Delight)", "status": "DELIGHT", "min_val": 9, "max_val": 10},
+        {"name": "Passive (Satisfied)", "status": "SATISFIED", "min_val": 7, "max_val": 8},
+        {"name": "Detractor (Dissatisfied)", "status": "DISSATISFIED", "min_val": 0, "max_val": 6}
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "name": "Ather Detractor High Complaint Trigger",
+      "enabled": true,
+      "priority": 1,
+      "conditions": {"score": {"lte": 60}},
+      "actions": {"create_complaint": {"severity": "HIGH", "category": "Ather TNPS Dissatisfaction"}}
+    }
+  ],
+  "labels": {
+    "CRE": "Ather Experience Executive",
+    "DELIGHT": "Promoter",
+    "TNPS": "Ather TNPS Survey",
+    "JOB_CARD": "Service Order (RO)",
+    "COMPLAINT": "Customer Escalation"
+  }
+}

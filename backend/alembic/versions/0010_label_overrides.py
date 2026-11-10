@@ -60,3 +60,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('idx_label_overrides_tenant_key', table_name='label_overrides')
     op.drop_table('label_overrides')
+

@@ -1,0 +1,110 @@
+{
+  "pack_version": "1.0.0",
+  "name": "Hyundai Dealership Pack",
+  "brand_code": "HYUN",
+  "description": "Hyundai Motor India dealership follow-up configuration with 1-10 NPS scale and Happiness calling",
+  "programs": [
+    {
+      "code": "PSF",
+      "label": "Hyundai PSF Survey",
+      "enabled": true,
+      "trigger": "ON_IMPORT",
+      "channel": "PHONE",
+      "max_attempts": 3,
+      "retry_gap_hours": 24,
+      "sla_hours": 72,
+      "sort_order": 1
+    },
+    {
+      "code": "HAPPINESS",
+      "label": "Hyundai 15/30-Day Happiness Calling",
+      "enabled": true,
+      "trigger": "AFTER_DAYS(15)",
+      "channel": "PHONE",
+      "max_attempts": 2,
+      "retry_gap_hours": 48,
+      "sla_hours": 96,
+      "sort_order": 2
+    },
+    {
+      "code": "RECONFIRMATION",
+      "label": "Post-Complaint Reconfirmation",
+      "enabled": true,
+      "trigger": "AFTER_COMPLAINT_CLOSURE",
+      "channel": "PHONE",
+      "max_attempts": 2,
+      "retry_gap_hours": 24,
+      "sla_hours": 48,
+      "sort_order": 3
+    }
+  ],
+  "questionnaires": [
+    {
+      "type": "PSF",
+      "title": "Hyundai Post Service Follow-up (PSF) Standard Survey",
+      "questions": [
+        {
+          "key": "rating_overall_interaction_experience",
+          "label": "Overall experience with Hyundai workshop (0-10)",
+          "type": "nps_10",
+          "kpi_tag": "NPS",
+          "complaint_trigger_below": 7,
+          "rating_min": 0,
+          "rating_max": 10
+        },
+        {
+          "key": "rating_maintenance_repair_work",
+          "label": "Quality of maintenance and repair work performed (0-10)",
+          "type": "nps_10",
+          "kpi_tag": "SERVICE_QUALITY",
+          "complaint_trigger_below": 7,
+          "rating_min": 0,
+          "rating_max": 10
+        },
+        {
+          "key": "charges_explained_reasonable",
+          "label": "Were service estimates and final bill charges clearly explained?",
+          "type": "yes_no",
+          "kpi_tag": "TRANSPARENCY",
+          "complaint_trigger_below": 1
+        },
+        {
+          "key": "car_returned_same_day",
+          "label": "Was your car delivered on promised date and time?",
+          "type": "yes_no",
+          "kpi_tag": "DELIVERY_TIMELINESS",
+          "complaint_trigger_below": 1
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "Hyundai 1-10 Scale",
+      "scale_type": "NPS_10",
+      "min_val": 1,
+      "max_val": 10,
+      "bands": [
+        {"name": "Delight", "status": "DELIGHT", "min_val": 9, "max_val": 10},
+        {"name": "Satisfied", "status": "SATISFIED", "min_val": 7, "max_val": 8},
+        {"name": "Dissatisfied", "status": "DISSATISFIED", "min_val": 1, "max_val": 6}
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "name": "Hyundai Overall Rating <= 6 High Complaint",
+      "enabled": true,
+      "priority": 1,
+      "conditions": {"score": {"lte": 60}},
+      "actions": {"create_complaint": {"severity": "HIGH", "category": "General Service Quality"}}
+    }
+  ],
+  "labels": {
+    "CRE": "Customer Relationship Executive",
+    "DELIGHT": "Delight",
+    "TNPS": "Follow-up Program",
+    "JOB_CARD": "Job Card",
+    "COMPLAINT": "Customer Complaint"
+  }
+}

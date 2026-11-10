@@ -25,6 +25,7 @@ import {
   SplitSquareVertical,
   Tag,
   Sparkles,
+  Package,
 } from 'lucide-react';
 
 import RolesMatrixTab from './tabs/RolesMatrixTab';
@@ -44,6 +45,7 @@ import DataCorrectionTab from './tabs/DataCorrectionTab';
 import KpiTagsTab from './tabs/KpiTagsTab';
 import OutcomeRulesTab from './tabs/OutcomeRulesTab';
 import LabelsTab from './tabs/LabelsTab';
+import DealershipWizardTab from './tabs/DealershipWizardTab';
 
 import { useAuthStore } from '../../store/authStore';
 
@@ -57,6 +59,7 @@ export default function AdminConsolePage() {
   // Tab definitions: strictly filter based on dynamic permissions
   const availableTabs = [
     { id: 'programs', label: 'Follow-Up Programs', icon: CalendarCheck, visible: isSuperAdmin || can('config.manage') || can('program.manage') },
+    { id: 'packs_wizard', label: 'Packs & Wizard', icon: Package, visible: isSuperAdmin || can('config.manage') },
     { id: 'labels', label: 'Labels & Terminology', icon: Tag, visible: isSuperAdmin || can('config.manage') },
     { id: 'kpi_tags', label: 'KPI Tags', icon: Tag, visible: isSuperAdmin || can('config.manage') },
     { id: 'outcome_rules', label: 'Outcome Rules', icon: Sparkles, visible: isSuperAdmin || can('config.manage') },
@@ -120,6 +123,7 @@ export default function AdminConsolePage() {
       {/* Active Tab Content */}
       <div className="pt-2">
         {activeTab === 'programs' && <ProgramsTab />}
+        {activeTab === 'packs_wizard' && <DealershipWizardTab />}
         {activeTab === 'labels' && <LabelsTab />}
         {activeTab === 'kpi_tags' && <KpiTagsTab />}
         {activeTab === 'outcome_rules' && <OutcomeRulesTab />}

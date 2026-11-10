@@ -46,7 +46,7 @@ from app.models.additional import (
     ConfigChangeHistory,
     NotificationLog,
 )
-from app.models.config import ConfigVersion, FollowUpProgram, OutcomeRule, LabelOverride
+from app.models.config import ConfigVersion, FollowUpProgram, OutcomeRule, LabelOverride, ConfigPack
 
 __all__ = [
     "Base",
@@ -97,4 +97,5 @@ __all__ = [
     "FollowUpProgram",
     "OutcomeRule",
     "LabelOverride",
+    "ConfigPack",
 ]

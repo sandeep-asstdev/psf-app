@@ -35,6 +35,7 @@ from app.models.complaint import Complaint, ComplaintCategory, ComplaintEvent
 from app.models.questionnaire import Questionnaire, Question
 from app.models.tenant import Brand, Branch
 from app.models.auth import User
+from app.models.config import FollowUpProgram
 from app.core.crypto import decrypt_phone, mask_phone, encrypt_phone, hash_phone
 from app.schemas.psf import (
     PsfDashboardStats,
@@ -694,18 +695,25 @@ async def submit_call_log(
     nps_cat = None
 
     if payload.survey_answers:
-        # Fetch active questionnaire questions
-        q_stmt = (
-            select(Questionnaire)
-            .where(
-                Questionnaire.tenant_id == tenant_id,
-                Questionnaire.brand_id == jc.brand_id,
-                Questionnaire.type == queue.queue_type,
-                Questionnaire.is_active == True,
+        # Fetch active questionnaire: check program-linked questionnaire first, then brand questionnaire
+        q_model = None
+        if queue.program_id:
+            prog_stmt = select(FollowUpProgram).where(FollowUpProgram.id == queue.program_id)
+            prog_obj = (await db.execute(prog_stmt)).scalar_one_or_none()
+            if prog_obj and prog_obj.questionnaire_id:
+                q_model = (await db.execute(select(Questionnaire).where(Questionnaire.id == prog_obj.questionnaire_id))).scalar_one_or_none()
+
+        if not q_model:
+            q_stmt = (
+                select(Questionnaire)
+                .where(
+                    Questionnaire.tenant_id == tenant_id,
+                    Questionnaire.brand_id == jc.brand_id,
+                    Questionnaire.is_active == True,
+                )
+                .order_by(Questionnaire.version.desc())
             )
-            .order_by(Questionnaire.version.desc())
-        )
-        q_model = (await db.execute(q_stmt)).scalars().first()
+            q_model = (await db.execute(q_stmt)).scalars().first()
         if q_model:
             q_full = await get_questionnaire_by_id(db, tenant_id, q_model.id)
             if q_full and q_full.questions:
@@ -752,7 +760,9 @@ async def submit_call_log(
                     payload.case_status = rule_results["outcome_status"]
                 if rule_results.get("complaint") and not payload.has_complaint:
                     payload.has_complaint = True
-                    payload.complaint_desc = rule_results["complaint"].get("description", "Auto-triggered by rule")
+                    payload.complaint_description = rule_results["complaint"].get("description", "Auto-triggered by rule")
+                    if rule_results["complaint"].get("severity"):
+                        payload.complaint_severity = rule_results["complaint"]["severity"]
 
     # 3. Handle Complaint creation if checked
     complaint_ticket = None

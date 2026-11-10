@@ -1,0 +1,90 @@
+{
+  "pack_version": "1.0.0",
+  "name": "MG Motor Dealership Pack",
+  "brand_code": "MG",
+  "description": "MG Motor India dealership follow-up configuration with 1-5 Star rating scale and Shield program",
+  "programs": [
+    {
+      "code": "PSF",
+      "label": "MG Motor 5-Star PSF Survey",
+      "enabled": true,
+      "trigger": "ON_IMPORT",
+      "channel": "PHONE",
+      "max_attempts": 3,
+      "retry_gap_hours": 24,
+      "sla_hours": 48,
+      "sort_order": 1
+    },
+    {
+      "code": "HAPPINESS",
+      "label": "MG 30-Day Courtesy Calling",
+      "enabled": true,
+      "trigger": "AFTER_DAYS(30)",
+      "channel": "PHONE",
+      "max_attempts": 2,
+      "retry_gap_hours": 48,
+      "sla_hours": 96,
+      "sort_order": 2
+    }
+  ],
+  "questionnaires": [
+    {
+      "type": "PSF",
+      "title": "MG Motor 5-Question PSF Survey",
+      "questions": [
+        {
+          "key": "mg_overall_star_rating",
+          "label": "Overall experience rating with MG Service (1 to 5 Stars)",
+          "type": "rating",
+          "kpi_tag": "OVERALL_EXPERIENCE",
+          "complaint_trigger_below": 4,
+          "rating_min": 1,
+          "rating_max": 5
+        },
+        {
+          "key": "mg_timely_delivery",
+          "label": "Was your MG vehicle delivered on or before the committed time?",
+          "type": "yes_no",
+          "kpi_tag": "DELIVERY_TIMELINESS",
+          "complaint_trigger_below": 1
+        },
+        {
+          "key": "mg_i_smart_features",
+          "label": "Were all connected car and i-SMART features tested and functioning?",
+          "type": "yes_no",
+          "kpi_tag": "SERVICE_QUALITY",
+          "complaint_trigger_below": 1
+        }
+      ]
+    }
+  ],
+  "scales": [
+    {
+      "name": "MG Motor 1-5 Star Scale",
+      "scale_type": "RATING_5",
+      "min_val": 1,
+      "max_val": 5,
+      "bands": [
+        {"name": "Delight (5 Stars)", "status": "DELIGHT", "min_val": 5, "max_val": 5},
+        {"name": "Satisfied (4 Stars)", "status": "SATISFIED", "min_val": 4, "max_val": 4},
+        {"name": "Dissatisfied (1-3 Stars)", "status": "DISSATISFIED", "min_val": 1, "max_val": 3}
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "name": "MG Low Star Rating Complaint Trigger",
+      "enabled": true,
+      "priority": 1,
+      "conditions": {"score": {"lte": 60}},
+      "actions": {"create_complaint": {"severity": "HIGH", "category": "MG Shield Service Quality"}}
+    }
+  ],
+  "labels": {
+    "CRE": "MG Customer Experience Manager",
+    "DELIGHT": "5-Star Delight",
+    "TNPS": "Follow-up Program",
+    "JOB_CARD": "Job Card",
+    "COMPLAINT": "Customer Concern"
+  }
+}

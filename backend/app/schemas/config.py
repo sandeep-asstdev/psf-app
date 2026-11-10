@@ -214,3 +214,35 @@ class LabelOverrideBatch(BaseModel):
     labels: Dict[str, str] = Field(..., description="Mapping of label key to customized display value")
     language: str = Field("en", max_length=10)
 
+
+class PackMetadata(BaseModel):
+    code: str
+    name: str
+    version: str
+    description: Optional[str] = None
+    brand_code: Optional[str] = None
+
+
+class ClonePackRequest(BaseModel):
+    pack_code: str = Field(..., description="Pack code (HYUNDAI, TATA, MG, ATHER, BLANK)")
+    brand_id: Optional[uuid.UUID] = None
+
+
+class OnboardDealershipRequest(BaseModel):
+    name: str = Field(..., max_length=150)
+    slug: str = Field(..., max_length=60)
+    brand_name: str = Field(..., max_length=80)
+    brand_code: str = Field(..., max_length=20)
+    branch_name: str = Field(..., max_length=100)
+    branch_code: str = Field(..., max_length=30)
+    admin_name: str = Field(..., max_length=100)
+    admin_email: str = Field(..., max_length=120)
+    admin_password: str = Field(..., min_length=6)
+    pack_code: str = Field("BLANK", max_length=50)
+
+
+class ConfigImportRequest(BaseModel):
+    config: Dict[str, Any]
+    validate_only: bool = False
+
+
