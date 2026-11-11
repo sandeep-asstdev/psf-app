@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Building2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../services/api';
 
-export default function BrandsBranchesTab() {
+export default function BrandsBranchesTab({ onNavigateToTenants }) {
   const [brands, setBrands] = useState([]);
   const [branches, setBranches] = useState([]);
   const [brandModal, setBrandModal] = useState(false);
@@ -140,6 +140,25 @@ export default function BrandsBranchesTab() {
 
   return (
     <div className="space-y-6">
+      {onNavigateToTenants && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <Building2 className="w-5 h-5 text-blue-600 shrink-0" />
+            <div>
+              <span className="font-bold text-blue-900 block">Looking to onboard a new Dealership Tenant?</span>
+              <span className="text-blue-700">Multi-tenant dealerships (with isolated database space, brands, branches, and admin credentials) can be created from Tenant Management.</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onNavigateToTenants}
+            className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shrink-0 shadow-sm transition cursor-pointer"
+          >
+            + Create New Tenant
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Brands Section */}
         <div className="rounded-lg border border-border bg-background-surface p-4 space-y-4">

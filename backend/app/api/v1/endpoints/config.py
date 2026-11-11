@@ -822,6 +822,7 @@ async def list_all_tenants(
 
 
 @router.post("/dealerships/wizard")
+@router.post("/tenants")
 async def onboard_dealership_wizard(
     req: OnboardDealershipRequest,
     db: AsyncSession = Depends(get_db),

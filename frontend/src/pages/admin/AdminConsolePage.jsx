@@ -47,14 +47,15 @@ import OutcomeRulesTab from './tabs/OutcomeRulesTab';
 import LabelsTab from './tabs/LabelsTab';
 import DealershipWizardTab from './tabs/DealershipWizardTab';
 
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore, isUserSuperAdmin } from '../../store/authStore';
 
 export default function AdminConsolePage() {
   const { user, can } = useAuthStore();
-  const isSuperAdmin = user?.is_super_admin || user?.role_name === 'SUPER_ADMIN';
+  const isSuperAdmin = isUserSuperAdmin(user);
 
-  // Automatically default tab: Super Admin starts at 'programs' or 'matrix', others start at 'users'
-  const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'programs' : 'users');
+  // Automatically default tab: Super Admin starts at 'tenants', others start at 'users'
+  const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'tenants' : 'users');
+  const [createTenantTrigger, setCreateTenantTrigger] = useState(0);
 
   // Tab definitions: strictly filter based on dynamic permissions
   const availableTabs = [
@@ -99,8 +100,12 @@ export default function AdminConsolePage() {
         {isSuperAdmin && (
           <button
             type="button"
-            onClick={() => setActiveTab('tenants')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+            id="btn-header-create-tenant"
+            onClick={() => {
+              setActiveTab('tenants');
+              setCreateTenantTrigger((prev) => prev + 1);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
           >
             <Building2 className="h-4 w-4" />
             <span>+ Create New Tenant</span>
@@ -132,14 +137,25 @@ export default function AdminConsolePage() {
 
       {/* Active Tab Content */}
       <div className="pt-2">
-        {activeTab === 'tenants' && <DealershipWizardTab />}
+        {activeTab === 'tenants' && <DealershipWizardTab createTrigger={createTenantTrigger} />}
         {activeTab === 'programs' && <ProgramsTab />}
-        {activeTab === 'packs_wizard' && <DealershipWizardTab />}
+        {activeTab === 'packs_wizard' && <DealershipWizardTab createTrigger={createTenantTrigger} />}
         {activeTab === 'labels' && <LabelsTab />}
         {activeTab === 'kpi_tags' && <KpiTagsTab />}
         {activeTab === 'outcome_rules' && <OutcomeRulesTab />}
         {activeTab === 'matrix' && <RolesMatrixTab isSuperAdmin={isSuperAdmin} />}
-        {activeTab === 'brands_branches' && <BrandsBranchesTab />}
+        {activeTab === 'brands_branches' && (
+          <BrandsBranchesTab
+            onNavigateToTenants={
+              isSuperAdmin
+                ? () => {
+                    setActiveTab('tenants');
+                    setCreateTenantTrigger((p) => p + 1);
+                  }
+                : undefined
+            }
+          />
+        )}
         {activeTab === 'users' && <UsersTab isSuperAdmin={isSuperAdmin} />}
         {activeTab === 'masters' && <DropdownMastersTab />}
         {activeTab === 'questionnaires' && <QuestionnairesTab />}

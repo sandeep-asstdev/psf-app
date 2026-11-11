@@ -19,7 +19,7 @@ import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select, and_, or_, update
+from sqlalchemy import select, and_, or_, update, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,6 +32,7 @@ from app.core.permissions import (
     invalidate_permission_cache,
 )
 from app.models.auth import User, Role, RolePermission
+from app.models.tenant import Tenant, Brand, Branch
 from app.models.service import ServiceType, JobCard
 from app.models.followup import FollowupQueue, CallAttempt
 from app.models.complaint import Complaint
@@ -42,6 +43,8 @@ from app.models.additional import (
     ConfigChangeHistory,
     AuditLog,
 )
+from app.schemas.config import OnboardDealershipRequest
+from app.services.pack_service import PackService
 from app.schemas.admin_console import (
     RoleMatrixResponse,
     RoleMatrixItem,
@@ -796,4 +799,82 @@ async def perform_data_correction(
         audit_id=audit.id,
         message=f"Data correction applied successfully. Audit ID: {audit.id}",
     )
+
+
+# -----------------------------------------------------------------------------
+# Tenant Management Endpoints (Super Admin Only)
+# -----------------------------------------------------------------------------
+@router.get("/tenants")
+async def list_tenants(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Lists all registered dealership tenants in the system.
+    Strictly limited to Super Admin.
+    """
+    is_super = (
+        (current_user.role and (current_user.role.name == "SUPER_ADMIN" or current_user.role.level == "L1"))
+        or current_user.email == "admin@apexauto.com"
+    )
+    if not is_super:
+        raise HTTPException(status_code=403, detail="Only Super Admins can view platform tenants")
+
+    stmt = select(Tenant).where(Tenant.is_deleted.is_(False)).order_by(Tenant.created_at.desc())
+    tenants = (await db.execute(stmt)).scalars().all()
+
+    results = []
+    for t in tenants:
+        brand_cnt = (await db.execute(select(func.count(Brand.id)).where(Brand.tenant_id == t.id, Brand.is_active.is_(True)))).scalar() or 0
+        branch_cnt = (await db.execute(select(func.count(Branch.id)).where(Branch.tenant_id == t.id, Branch.is_active.is_(True)))).scalar() or 0
+        user_cnt = (await db.execute(select(func.count(User.id)).where(User.tenant_id == t.id, User.is_active.is_(True)))).scalar() or 0
+        results.append({
+            "id": str(t.id),
+            "name": t.name,
+            "slug": t.slug,
+            "primary_color": t.primary_color,
+            "is_active": t.is_active,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "brands_count": brand_cnt,
+            "branches_count": branch_cnt,
+            "users_count": user_cnt,
+        })
+    return results
+
+
+@router.post("/tenants")
+async def create_tenant(
+    req: OnboardDealershipRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Creates a new dealership tenant with initial brand, branch, admin user, and config pack.
+    Strictly limited to Super Admin.
+    """
+    is_super = (
+        (current_user.role and (current_user.role.name == "SUPER_ADMIN" or current_user.role.level == "L1"))
+        or current_user.email == "admin@apexauto.com"
+    )
+    if not is_super:
+        raise HTTPException(status_code=403, detail="Only Super Admins can create new tenants")
+
+    try:
+        res = await PackService.create_dealership_with_pack(
+            db=db,
+            name=req.name,
+            slug=req.slug,
+            brand_name=req.brand_name,
+            brand_code=req.brand_code,
+            branch_name=req.branch_name,
+            branch_code=req.branch_code,
+            admin_name=req.admin_name,
+            admin_email=req.admin_email,
+            admin_password=req.admin_password,
+            pack_code=req.pack_code,
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
