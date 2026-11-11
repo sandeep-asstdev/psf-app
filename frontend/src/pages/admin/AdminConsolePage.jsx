@@ -6,7 +6,8 @@
  * and supervisor data corrections.
  * ============================================================================
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   Key,
@@ -51,15 +52,21 @@ import { useAuthStore, isUserSuperAdmin } from '../../store/authStore';
 
 export default function AdminConsolePage() {
   const { user, can } = useAuthStore();
+  const [searchParams] = useSearchParams();
   const isSuperAdmin = isUserSuperAdmin(user);
 
-  // Automatically default tab: Super Admin starts at 'tenants', others start at 'users'
-  const [activeTab, setActiveTab] = useState(isSuperAdmin ? 'tenants' : 'users');
+  const initialTab = searchParams.get('tab') || 'tenants';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [createTenantTrigger, setCreateTenantTrigger] = useState(0);
 
-  // Tab definitions: strictly filter based on dynamic permissions
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t) setActiveTab(t);
+  }, [searchParams]);
+
+  // Tab definitions: Tenants & Dealerships is ALWAYS visible to all admins
   const availableTabs = [
-    { id: 'tenants', label: 'Tenants & Dealerships', icon: Building2, visible: isSuperAdmin },
+    { id: 'tenants', label: 'Tenants & Dealerships', icon: Building2, visible: true },
     { id: 'programs', label: 'Follow-Up Programs', icon: CalendarCheck, visible: isSuperAdmin || can('config.manage') || can('program.manage') },
     { id: 'labels', label: 'Labels & Terminology', icon: Tag, visible: isSuperAdmin || can('config.manage') },
     { id: 'kpi_tags', label: 'KPI Tags', icon: Tag, visible: isSuperAdmin || can('config.manage') },
@@ -90,27 +97,25 @@ export default function AdminConsolePage() {
               Enterprise Admin Console
             </h1>
             <span className="rounded-full bg-accent-subtle px-2.5 py-0.5 text-xs font-semibold text-accent">
-              {isSuperAdmin ? 'L1 Super Admin (Full Control)' : `${user?.role_name || 'CRE Admin'} (Data-Driven Access)`}
+              {isSuperAdmin ? 'L1 Super Admin (Full Control)' : `${user?.role_name || user?.role || 'CRE Admin'} (Data-Driven Access)`}
             </span>
           </div>
           <p className="mt-1 text-xs text-foreground-subtle">
             Configure dealership multi-brand hierarchy, follow-up programs, role matrix, questionnaires, and policies without code changes.
           </p>
         </div>
-        {isSuperAdmin && (
-          <button
-            type="button"
-            id="btn-header-create-tenant"
-            onClick={() => {
-              setActiveTab('tenants');
-              setCreateTenantTrigger((prev) => prev + 1);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
-          >
-            <Building2 className="h-4 w-4" />
-            <span>+ Create New Tenant</span>
-          </button>
-        )}
+        <button
+          type="button"
+          id="btn-header-create-tenant"
+          onClick={() => {
+            setActiveTab('tenants');
+            setCreateTenantTrigger((prev) => prev + 1);
+          }}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-md transition-all cursor-pointer shrink-0"
+        >
+          <Building2 className="h-4 w-4" />
+          <span>+ Create New Tenant</span>
+        </button>
       </div>
 
       {/* Navigation Tabs */}

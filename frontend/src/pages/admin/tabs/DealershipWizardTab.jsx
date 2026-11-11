@@ -83,11 +83,9 @@ export default function DealershipWizardTab({ createTrigger = 0 }) {
   const [validationResult, setValidationResult] = useState(null);
 
   useEffect(() => {
-    if (isSuperAdmin) {
-      fetchTenants();
-      fetchPacks();
-    }
-  }, [isSuperAdmin]);
+    fetchTenants();
+    fetchPacks();
+  }, []);
 
   useEffect(() => {
     if (createTrigger > 0) {
@@ -238,19 +236,6 @@ export default function DealershipWizardTab({ createTrigger = 0 }) {
     });
   };
 
-  // If not super admin, strictly deny access
-  if (!isSuperAdmin) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center max-w-xl mx-auto my-12">
-        <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-red-900">Access Restricted</h3>
-        <p className="text-sm text-red-700 mt-2">
-          Only Super Administrators (L1) have permission to create new dealership tenants or manage multi-tenant platform configurations.
-        </p>
-      </div>
-    );
-  }
-
   const filteredTenants = tenants.filter(
     (t) =>
       t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -259,6 +244,33 @@ export default function DealershipWizardTab({ createTrigger = 0 }) {
 
   return (
     <div className="space-y-6">
+      {/* Super Admin Notice if not signed in as Super Admin */}
+      {!isSuperAdmin && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 text-xs text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            <div>
+              <span className="font-bold block text-sm">Super Admin Exclusive Feature</span>
+              <span>
+                Tenant provisioning is strictly restricted to Super Administrators. You are signed in as{' '}
+                <strong>{user?.full_name || user?.email || 'User'} ({user?.role_name || user?.role || 'Staff'})</strong>.
+                Only Super Admin (<code>admin@apexauto.com</code>) can create new tenants.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = '/';
+            }}
+            className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white rounded-lg font-bold shrink-0 cursor-pointer shadow-sm"
+          >
+            Switch to Super Admin
+          </button>
+        </div>
+      )}
+
       {/* Top Banner & Sub-View Switcher */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>

@@ -33,6 +33,7 @@ import {
   Clock,
   X,
   ShieldCheck,
+  Building2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { formatDistanceToNow } from 'date-fns';
@@ -49,6 +50,7 @@ const NAV_ITEMS = [
   { to: '/import', label: 'Data Import', icon: UploadCloud, permission: 'jobcard.import' },
   { to: '/users', label: 'User Management', icon: Users, permissions: ['user.create', 'user.edit'] },
   { to: '/admin-console', label: 'Enterprise Admin', icon: ShieldCheck, permissions: ['role.manage', 'permission.manage', 'brand.manage', 'data.correct'] },
+  { to: '/admin-console?tab=tenants', label: 'Tenants & Dealerships', icon: Building2, permissions: ['role.manage', 'permission.manage', 'brand.manage', 'data.correct'] },
   { to: '/settings', label: 'Settings', icon: Settings, permissions: ['brand.manage', 'settings.manage', 'config.view'] },
 ];
 
