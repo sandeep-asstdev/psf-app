@@ -252,7 +252,7 @@ async def seed_demo():
                 LoginLog.logout_at.is_(None),
                 func.date(LoginLog.login_at) == today,
             )
-            has_login = (await db.execute(log_stmt)).scalar_one_or_none()
+            has_login = (await db.execute(log_stmt)).scalars().first()
             if not has_login:
                 db.add(LoginLog(
                     tenant_id=tenant_id,
