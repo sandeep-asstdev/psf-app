@@ -53,6 +53,7 @@ async def get_psf_dashboard_stats(
     brand_id: Optional[uuid.UUID] = None,
     branch_id: Optional[uuid.UUID] = None,
     cre_id: Optional[uuid.UUID] = None,
+    queue_type: Optional[str] = None,
     current_user: User = Depends(require(PermissionKey.CALL_VIEW)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -72,6 +73,32 @@ async def get_psf_dashboard_stats(
         brand_id=brand_id,
         branch_id=branch_id,
         cre_id=cre_id,
+        queue_type=queue_type,
+    )
+
+
+@router.get("/dashboard/tnps", response_model=PsfDashboardStats)
+async def get_tnps_dashboard_stats(
+    branch_id: Optional[uuid.UUID] = None,
+    cre_id: Optional[uuid.UUID] = None,
+    current_user: User = Depends(require(PermissionKey.CALL_VIEW)),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retrieves dedicated Ather Energy TNPS dashboard stats and NPS breakdown."""
+    from app.core.permissions import get_user_effective_permissions, DataScope
+    eff = await get_user_effective_permissions(db, current_user)
+    scope = eff.get("permissions", {}).get(PermissionKey.CALL_VIEW, DataScope.ALL)
+    user_role_name = eff.get("role_name", "").upper()
+
+    if not eff.get("is_super_admin", False) and (scope == DataScope.OWN or user_role_name in ["CRE", "BRANCH_CRE"]):
+        cre_id = current_user.id
+
+    return await get_dashboard_stats(
+        db=db,
+        tenant_id=current_user.tenant_id,
+        branch_id=branch_id,
+        cre_id=cre_id,
+        queue_type="TNPS",
     )
 
 

@@ -21,6 +21,7 @@ import { NavLink } from 'react-router-dom';
 import {
   Home,
   PhoneCall,
+  Zap,
   HeartHandshake,
   AlertOctagon,
   Wrench,
@@ -39,6 +40,7 @@ import { formatDistanceToNow } from 'date-fns';
 const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/psf', label: 'PSF Dashboard', icon: PhoneCall, badge: '14', permission: 'call.view' },
+  { to: '/tnps', label: 'TNPS Dashboard', icon: Zap, badge: 'Ather', permission: 'call.view' },
   { to: '/happiness', label: 'Happiness Calling', icon: HeartHandshake, badge: '6', permission: 'call.view' },
   { to: '/complaints', label: 'Complaints', icon: AlertOctagon, badge: '3', permission: 'complaint.view' },
   { to: '/advisor', label: 'Advisor Followup', icon: Wrench, permission: 'advisor.action' },

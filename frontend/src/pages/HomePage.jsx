@@ -182,10 +182,10 @@ export default function HomePage() {
             </div>
             <button
               type="button"
-              onClick={() => navigate('/psf')}
+              onClick={() => navigate('/tnps')}
               className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1"
             >
-              <span>View In PSF Workspace</span>
+              <span>Open Dedicated TNPS Dashboard</span>
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -193,7 +193,7 @@ export default function HomePage() {
             {stats.tnps_calls_by_branch.map((b) => (
               <div
                 key={b.branch_id}
-                onClick={() => navigate('/psf')}
+                onClick={() => navigate('/tnps')}
                 className="cursor-pointer bg-white dark:bg-slate-900 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900/50 hover:border-emerald-500 transition shadow-xs"
               >
                 <div className="text-xs font-bold text-slate-900 dark:text-white truncate">

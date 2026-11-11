@@ -237,3 +237,29 @@ async def test_legacy_tnps_date_field_no_scheduling():
         # Confirm no FollowupQueue with scheduled_tnps_date was created
         q_res = await db.execute(select(FollowupQueue).where(FollowupQueue.job_card_id == jc.id))
         assert len(q_res.scalars().all()) == 0
+
+
+@pytest.mark.asyncio
+async def test_dedicated_tnps_dashboard_endpoint():
+    """Verify that dedicated /psf/dashboard/tnps returns metrics scoped specifically to TNPS."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        login_res = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@apexauto.com", "password": "Admin@12345"},
+        )
+        assert login_res.status_code == 200
+        token = login_res.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        res = await client.get("/api/v1/psf/dashboard/tnps", headers=headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert "total_pending" in data
+        assert "total_contacted" in data
+        assert "connect_rate_pct" in data
+        assert "tnps_calls_by_branch" in data
+        assert "by_call_status" in data
+        assert "promoters_count" in data
+        assert "passives_count" in data
+        assert "detractors_count" in data

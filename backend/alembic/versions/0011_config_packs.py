@@ -38,3 +38,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index('idx_config_packs_code', table_name='config_packs')
     op.drop_table('config_packs')
+

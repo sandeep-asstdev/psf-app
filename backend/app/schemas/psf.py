@@ -37,6 +37,11 @@ class PsfDashboardStats(BaseModel):
     by_assigned_cre: List[Dict[str, Any]] = []
     tnps_calls_by_branch: List[Dict[str, Any]] = []
     unassigned_count: int = 0
+    nps_score: Optional[float] = None
+    promoters_count: Optional[int] = 0
+    passives_count: Optional[int] = 0
+    detractors_count: Optional[int] = 0
+    nps_respondents: Optional[int] = 0
 
 
 class FollowupQueueListItem(BaseModel):

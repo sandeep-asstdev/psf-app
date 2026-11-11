@@ -93,3 +93,11 @@ describe('Frontend Custom Labels & Vocabulary Store', () => {
     expect(updated.getLabel('COMPLAINT')).toBe('Customer Complaint');
   });
 });
+
+describe('TNPS Dashboard Component', () => {
+  it('imports TnpsDashboardPage successfully without errors', async () => {
+    const module = await import('../pages/tnps/TnpsDashboardPage');
+    expect(module.default).toBeDefined();
+    expect(typeof module.default).toBe('function');
+  });
+});

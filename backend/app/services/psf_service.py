@@ -56,10 +56,26 @@ async def get_dashboard_stats(
     brand_id: Optional[uuid.UUID] = None,
     branch_id: Optional[uuid.UUID] = None,
     cre_id: Optional[uuid.UUID] = None,
+    queue_type: Optional[str] = None,
 ) -> PsfDashboardStats:
     """Aggregates multi-tenant follow-up metrics and grouped widget summaries."""
     queue_filters = [FollowupQueue.tenant_id == tenant_id, FollowupQueue.is_deleted == False]
     jc_filters = [JobCard.tenant_id == tenant_id, JobCard.is_deleted == False]
+
+    ather_brand_ids = []
+    if queue_type == "TNPS":
+        queue_filters.append(FollowupQueue.queue_type == "TNPS")
+        ather_brand_res = await db.execute(
+            select(Brand.id).where(
+                Brand.tenant_id == tenant_id,
+                or_(Brand.enable_tnps == True, Brand.code.in_(["ATHER", "ATHER_ENERGY"]), Brand.name.ilike("%Ather%")),
+            )
+        )
+        ather_brand_ids = [r[0] for r in ather_brand_res.all()]
+        if ather_brand_ids and not brand_id:
+            jc_filters.append(JobCard.brand_id.in_(ather_brand_ids))
+    elif queue_type:
+        queue_filters.append(FollowupQueue.queue_type == queue_type)
 
     if brand_id:
         jc_filters.append(JobCard.brand_id == brand_id)
@@ -93,9 +109,22 @@ async def get_dashboard_stats(
     comp_filters = [Complaint.tenant_id == tenant_id, Complaint.is_deleted == False]
     if branch_id:
         comp_filters.append(Complaint.branch_id == branch_id)
-    open_comp_stmt = select(func.count(Complaint.id)).where(
-        and_(*comp_filters, Complaint.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"]))
-    )
+    if queue_type == "TNPS" and ather_brand_ids:
+        open_comp_stmt = (
+            select(func.count(Complaint.id))
+            .join(JobCard, Complaint.job_card_id == JobCard.id)
+            .where(
+                and_(
+                    *comp_filters,
+                    JobCard.brand_id.in_(ather_brand_ids),
+                    Complaint.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"]),
+                )
+            )
+        )
+    else:
+        open_comp_stmt = select(func.count(Complaint.id)).where(
+            and_(*comp_filters, Complaint.status.in_(["OPEN", "ASSIGNED", "IN_PROGRESS", "REOPENED"]))
+        )
     open_complaints_count = (await db.execute(open_comp_stmt)).scalar() or 0
 
     # 3. Reminders Today Count
@@ -139,12 +168,21 @@ async def get_dashboard_stats(
     ]
 
     # 5. Grouped: Follow-up History by Call Status
-    call_status_stmt = (
-        select(Call.call_status, func.count(Call.id).label("count"))
-        .where(Call.tenant_id == tenant_id, Call.is_deleted == False)
-        .group_by(Call.call_status)
-        .order_by(desc("count"))
-    )
+    if queue_type:
+        call_status_stmt = (
+            select(Call.call_status, func.count(Call.id).label("count"))
+            .join(FollowupQueue, Call.followup_queue_id == FollowupQueue.id)
+            .where(Call.tenant_id == tenant_id, Call.is_deleted == False, FollowupQueue.queue_type == queue_type)
+            .group_by(Call.call_status)
+            .order_by(desc("count"))
+        )
+    else:
+        call_status_stmt = (
+            select(Call.call_status, func.count(Call.id).label("count"))
+            .where(Call.tenant_id == tenant_id, Call.is_deleted == False)
+            .group_by(Call.call_status)
+            .order_by(desc("count"))
+        )
     call_status_rows = (await db.execute(call_status_stmt)).all()
     by_call_status = [{"status": r.call_status, "count": r.count} for r in call_status_rows]
 
@@ -273,6 +311,56 @@ async def get_dashboard_stats(
         for r in tnps_branch_rows
     ]
 
+    # NPS calculation for TNPS calls
+    nps_score = None
+    promoters_count = 0
+    passives_count = 0
+    detractors_count = 0
+    nps_respondents = 0
+
+    if queue_type == "TNPS":
+        sr_stmt = (
+            select(SurveyResponse.answers)
+            .join(Call, SurveyResponse.call_id == Call.id)
+            .join(FollowupQueue, Call.followup_queue_id == FollowupQueue.id)
+            .where(
+                SurveyResponse.tenant_id == tenant_id,
+                FollowupQueue.queue_type == "TNPS",
+                Call.is_deleted == False,
+            )
+        )
+        sr_rows = (await db.execute(sr_stmt)).scalars().all()
+        for ans_dict in sr_rows:
+            if not isinstance(ans_dict, dict):
+                continue
+            rating_val = None
+            for k, v in ans_dict.items():
+                if any(x in k.lower() for x in ["tnps", "recommend", "rating", "satisfaction"]):
+                    if isinstance(v, dict):
+                        rating_val = v.get("raw") if v.get("raw") is not None else v.get("score")
+                    elif isinstance(v, (int, float)):
+                        rating_val = v
+                    if rating_val is not None:
+                        break
+            if rating_val is not None:
+                try:
+                    num = float(rating_val)
+                    if num > 10 and num <= 100:
+                        num = num / 10.0
+                    if 0 <= num <= 10:
+                        nps_respondents += 1
+                        if num >= 9:
+                            promoters_count += 1
+                        elif num >= 7:
+                            passives_count += 1
+                        else:
+                            detractors_count += 1
+                except (ValueError, TypeError):
+                    pass
+
+        if nps_respondents > 0:
+            nps_score = round(((promoters_count - detractors_count) / nps_respondents) * 100, 1)
+
     return PsfDashboardStats(
         total_pending=total_pending,
         total_contacted=total_contacted,
@@ -287,6 +375,11 @@ async def get_dashboard_stats(
         by_assigned_cre=by_assigned_cre,
         tnps_calls_by_branch=tnps_calls_by_branch,
         unassigned_count=unassigned_count,
+        nps_score=nps_score,
+        promoters_count=promoters_count,
+        passives_count=passives_count,
+        detractors_count=detractors_count,
+        nps_respondents=nps_respondents,
     )
 
 

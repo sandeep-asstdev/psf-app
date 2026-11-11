@@ -28,6 +28,7 @@ import UserManagementPage from './pages/users/UserManagementPage';
 import SettingsPage from './pages/settings/SettingsPage';
 import DataImportPage from './pages/imports/DataImportPage';
 import PsfDashboardPage from './pages/psf/PsfDashboardPage';
+import TnpsDashboardPage from './pages/tnps/TnpsDashboardPage';
 import ComplaintManagementPage from './pages/complaints/ComplaintManagementPage';
 import HappinessCallingPage from './pages/happiness/HappinessCallingPage';
 import AdvisorPortalPage from './pages/advisors/AdvisorPortalPage';
@@ -79,6 +80,14 @@ export default function App() {
                   element={
                     <ProtectedRoute permission="call.view">
                       <PsfDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tnps"
+                  element={
+                    <ProtectedRoute permission="call.view">
+                      <TnpsDashboardPage />
                     </ProtectedRoute>
                   }
                 />

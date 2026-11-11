@@ -46,6 +46,7 @@ import {
   X,
   ExternalLink,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
@@ -54,6 +55,7 @@ import CallAttemptHistoryModal from '../../components/calling/CallAttemptHistory
 import PresentCresPanel from '../../components/allocation/PresentCresPanel';
 
 export default function PsfDashboardPage() {
+  const navigate = useNavigate();
   const { user, can } = useAuthStore();
   const isSuperAdmin = user?.is_super_admin || user?.role_name === 'SUPER_ADMIN' || user?.level === 'L1';
   const isCreAdmin = user?.role_name === 'CRE_ADMIN' || user?.role_name === 'DEALER_ADMIN';
@@ -376,17 +378,26 @@ export default function PsfDashboardPage() {
                 Ather Energy TNPS Follow-up Calls (By Workshop Branch)
               </h3>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedQueueType('TNPS');
-                setPage(0);
-              }}
-              className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1"
-            >
-              <span>View All Ather TNPS Calls</span>
-              <ChevronRight className="h-3.5 w-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/tnps')}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-semibold flex items-center gap-1 shadow-xs transition"
+              >
+                <span>Open Dedicated TNPS Dashboard</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedQueueType('TNPS');
+                  setPage(0);
+                }}
+                className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline flex items-center gap-1"
+              >
+                <span>Filter Table Below</span>
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {stats.tnps_calls_by_branch.map((b) => (
