@@ -59,6 +59,7 @@ export default function TnpsDashboardPage() {
   const [showPresencePanel, setShowPresencePanel] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [queuesLoading, setQueuesLoading] = useState(true);
+  const [queueError, setQueueError] = useState(null);
 
   // Dedicated TNPS stats
   const [stats, setStats] = useState(null);
@@ -155,6 +156,7 @@ export default function TnpsDashboardPage() {
   const fetchQueues = async () => {
     try {
       setQueuesLoading(true);
+      setQueueError(null);
       const params = {
         queue_type: 'TNPS',
         status: selectedStatus,
@@ -170,6 +172,7 @@ export default function TnpsDashboardPage() {
       setTotalQueues(res.data.total || 0);
     } catch (err) {
       console.error('Failed to load TNPS calling queues:', err);
+      setQueueError(err.response?.data?.detail || 'Failed to load TNPS calling queue records');
       toast.error('Failed to load TNPS calling queue records');
     } finally {
       setQueuesLoading(false);
@@ -653,23 +656,59 @@ export default function TnpsDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {queuesLoading ? (
+              {queueError ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400">
-                    <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-emerald-500" />
-                    <span>Loading Ather TNPS queue records...</span>
+                  <td colSpan={9} className="p-12 text-center">
+                    <div className="inline-flex p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 mb-2">
+                      <AlertTriangle className="h-6 w-6" />
+                    </div>
+                    <p className="text-xs text-red-600 dark:text-red-400 font-semibold mb-3">{queueError}</p>
+                    <button
+                      type="button"
+                      onClick={fetchQueues}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 shadow-sm transition"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>Retry</span>
+                    </button>
                   </td>
                 </tr>
+              ) : queuesLoading ? (
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={9} className="p-3">
+                      <div className="h-8 rounded bg-slate-100 dark:bg-slate-800 w-full" />
+                    </td>
+                  </tr>
+                ))
               ) : queues.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400">
+                  <td colSpan={9} className="p-12 text-center text-slate-400">
                     <Zap className="h-8 w-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-600 dark:text-slate-300">
                       No Ather TNPS calls match current filters
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Import an Ather DMS batch or adjust the filter criteria above.
+                      {searchTerm || selectedBranch !== 'ALL' || selectedStatus !== 'ALL'
+                        ? 'Try clearing the search or filter criteria above.'
+                        : 'Import an Ather DMS batch to distribute new calls.'}
                     </p>
+                    {(searchTerm || selectedBranch !== 'ALL' || selectedStatus !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchTerm('');
+                          setSelectedBranch('ALL');
+                          setSelectedStatus('ALL');
+                          setSelectedCre('ALL');
+                          setPage(0);
+                        }}
+                        className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Reset Filters</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ) : (

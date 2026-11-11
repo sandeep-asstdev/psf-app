@@ -44,9 +44,29 @@ import {
   Pause,
   RotateCcw,
   ShieldAlert,
+  Copy,
+  Save,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
+
+export function formatIndianCurrency(val) {
+  if (val === null || val === undefined || isNaN(val)) return '₹ 0';
+  return `₹ ${Number(val).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
+export function formatIndianDate(dateStr) {
+  if (!dateStr) return '-';
+  try {
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpdated }) {
   const [loading, setLoading] = useState(true);
@@ -79,8 +99,16 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
   const [callbackAt, setCallbackAt] = useState('');
   const [callbackNote, setCallbackNote] = useState('');
 
+  // Draft restoration
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
+
   // Submitting state
   const [submitting, setSubmitting] = useState(false);
+
+  // Sync currentQueueId when prop changes
+  useEffect(() => {
+    if (queueId) setCurrentQueueId(queueId);
+  }, [queueId]);
 
   // Load console details when currentQueueId changes
   useEffect(() => {
@@ -95,6 +123,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
       setCallbackAt('');
       setCallStatus('Connected');
       setCaseStatus('Satisfied');
+      setIsDraftRestored(false);
     }
   }, [isOpen, currentQueueId]);
 
@@ -109,17 +138,64 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
     return () => clearInterval(interval);
   }, [isTimerRunning, isOpen]);
 
-  // Keyboard shortcut Ctrl+Enter to trigger Save & Next
+  // Auto-save draft to localStorage
   useEffect(() => {
+    if (!isOpen || !currentQueueId || loading) return;
+    const draft = {
+      surveyAnswers,
+      vocText,
+      callStatus,
+      caseStatus,
+      hasComplaint,
+      complaintDesc,
+      complaintSeverity,
+      selectedCategoryId,
+      callbackAt,
+      callbackNote,
+      updatedAt: Date.now(),
+    };
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(`psf_call_draft_${currentQueueId}`, JSON.stringify(draft));
+      } catch (e) {
+        // quota or private mode fallback
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [
+    isOpen,
+    currentQueueId,
+    loading,
+    surveyAnswers,
+    vocText,
+    callStatus,
+    caseStatus,
+    hasComplaint,
+    complaintDesc,
+    complaintSeverity,
+    selectedCategoryId,
+    callbackAt,
+    callbackNote,
+  ]);
+
+  // Keyboard shortcuts (Ctrl+Enter / Alt+S: Save & Next, Alt+P: Timer, Esc: Close)
+  useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      if (((e.ctrlKey || e.metaKey) && e.key === 'Enter') || (e.altKey && (e.key === 's' || e.key === 'S' || e.key === 'n' || e.key === 'N'))) {
         e.preventDefault();
         handleSubmitCall(true);
+      } else if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setIsTimerRunning((prev) => !prev);
+      } else if (e.key === 'Escape' && !submitting) {
+        e.preventDefault();
+        onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [consoleData, callStatus, caseStatus, vocText, surveyAnswers, hasComplaint]);
+  }, [isOpen, submitting, consoleData, callStatus, caseStatus, vocText, surveyAnswers, hasComplaint, complaintDesc]);
 
   const loadConsoleDetails = async (qId) => {
     try {
@@ -143,13 +219,71 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
         else if (['yes_no', 'yes_no_na'].includes(q.type)) initial[q.key] = 'yes';
         else initial[q.key] = '';
       });
-      setSurveyAnswers(initial);
+
+      // Restore from draft if available
+      try {
+        const savedDraft = localStorage.getItem(`psf_call_draft_${qId}`);
+        if (savedDraft) {
+          const parsed = JSON.parse(savedDraft);
+          if (parsed.surveyAnswers && Object.keys(parsed.surveyAnswers).length > 0) {
+            setSurveyAnswers({ ...initial, ...parsed.surveyAnswers });
+          } else {
+            setSurveyAnswers(initial);
+          }
+          if (parsed.vocText) setVocText(parsed.vocText);
+          if (parsed.callStatus) setCallStatus(parsed.callStatus);
+          if (parsed.caseStatus) setCaseStatus(parsed.caseStatus);
+          if (parsed.hasComplaint !== undefined) setHasComplaint(parsed.hasComplaint);
+          if (parsed.complaintDesc) setComplaintDesc(parsed.complaintDesc);
+          if (parsed.callbackAt) setCallbackAt(parsed.callbackAt);
+          if (parsed.callbackNote) setCallbackNote(parsed.callbackNote);
+          setIsDraftRestored(true);
+        } else {
+          setSurveyAnswers(initial);
+        }
+      } catch {
+        setSurveyAnswers(initial);
+      }
     } catch (err) {
       toast.error('Failed to load call console details: ' + (err.response?.data?.detail || err.message));
       onClose();
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(`psf_call_draft_${currentQueueId}`);
+    } catch {}
+    setIsDraftRestored(false);
+    const initial = {};
+    (consoleData?.questionnaire?.questions || []).forEach((q) => {
+      if (q.type === 'rating_5') initial[q.key] = 5;
+      else if (q.type === 'nps_10') initial[q.key] = 10;
+      else if (['yes_no', 'yes_no_na'].includes(q.type)) initial[q.key] = 'yes';
+      else initial[q.key] = '';
+    });
+    setSurveyAnswers(initial);
+    setVocText('');
+    setHasComplaint(false);
+    setComplaintDesc('');
+    toast.success('Draft discarded');
+  };
+
+  const setQuickCallback = (hours) => {
+    const d = new Date();
+    d.setTime(d.getTime() + hours * 3600 * 1000);
+    const pad = (n) => String(n).padStart(2, '0');
+    setCallbackAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  };
+
+  const setCallbackNextDay = (hour) => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(hour, 0, 0, 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    setCallbackAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
   };
 
   // Format timer MM:SS
@@ -256,6 +390,10 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
 
       const res = await api.post('/psf/calls/submit', payload);
 
+      try {
+        localStorage.removeItem(`psf_call_draft_${currentQueueId}`);
+      } catch {}
+
       if (res.data.complaint_ticket_no) {
         toast.success(`Complaint registered: Ticket ${res.data.complaint_ticket_no}`, { icon: '🚨' });
       } else {
@@ -305,6 +443,19 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                 RO: {jc?.job_card_no}
               </span>
             </div>
+            {isDraftRestored && (
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                <Save className="h-3 w-3 text-amber-600" />
+                <span>Draft auto-restored</span>
+                <button
+                  type="button"
+                  onClick={handleDiscardDraft}
+                  className="ml-1 text-red-600 hover:underline"
+                >
+                  Discard
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Center Call Timer */}
@@ -317,7 +468,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
               type="button"
               onClick={() => setIsTimerRunning(!isTimerRunning)}
               className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              title={isTimerRunning ? 'Pause Timer' : 'Resume Timer'}
+              title={isTimerRunning ? 'Pause Timer (Alt+P)' : 'Resume Timer (Alt+P)'}
             >
               {isTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 text-emerald-500" />}
             </button>
@@ -338,6 +489,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
             </span>
             <button
               onClick={onClose}
+              title="Close (Esc)"
               className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition"
             >
               <X className="h-5 w-5" />
@@ -389,15 +541,35 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
 
                   {/* Phone Number Display & Quick Actions */}
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                    <div className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
-                      {showFullPhone ? cust?.phone_raw : cust?.phone_masked}
+                    <div className="flex items-center gap-2">
+                      <div className="font-mono text-xs font-semibold text-slate-900 dark:text-white">
+                        {showFullPhone ? cust?.phone_raw : cust?.phone_masked}
+                      </div>
+                      {cust?.phone_raw && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText(cust.phone_raw);
+                            toast.success(`Copied: ${cust.phone_raw}`);
+                          }}
+                          className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          title="Copy phone number"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2">
                       {cust?.phone_raw && (
                         <a
                           href={`tel:${cust.phone_raw}`}
+                          onClick={() => {
+                            setIsTimerRunning(true);
+                            navigator.clipboard?.writeText(cust.phone_raw);
+                          }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition"
+                          title="Click to Call (+ Copy)"
                         >
                           <Phone className="h-3 w-3" />
                           Call
@@ -409,6 +581,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-green-600 hover:bg-green-700 text-white text-xs font-semibold shadow-sm transition"
+                          title="Open WhatsApp Greeting"
                         >
                           <MessageSquare className="h-3 w-3" />
                           WhatsApp
@@ -418,8 +591,14 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                   </div>
 
                   {cust?.alt_phone_raw && (
-                    <div className="text-xs text-slate-400">
-                      Alt Phone: <span className="font-mono text-slate-600 dark:text-slate-300">{cust.alt_phone_raw}</span>
+                    <div className="text-xs text-slate-400 flex items-center justify-between">
+                      <span>Alt Phone: <span className="font-mono text-slate-600 dark:text-slate-300">{cust.alt_phone_raw}</span></span>
+                      <a
+                        href={`tel:${cust.alt_phone_raw}`}
+                        className="text-[11px] text-blue-600 hover:underline font-semibold"
+                      >
+                        Call Alt
+                      </a>
                     </div>
                   )}
                 </div>
@@ -448,7 +627,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                     <div>
                       <span className="text-slate-400">Total Invoice:</span>
                       <div className="font-bold text-blue-600 text-sm">
-                        ₹{Number(jc?.total_amount || 0).toLocaleString()}
+                        {formatIndianCurrency(jc?.total_amount)}
                       </div>
                     </div>
                     <div>
@@ -458,9 +637,15 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                       </div>
                     </div>
                     <div>
+                      <span className="text-slate-400">RO Date:</span>
+                      <div className="font-medium text-slate-800 dark:text-slate-200">
+                        {formatIndianDate(jc?.job_card_date)}
+                      </div>
+                    </div>
+                    <div>
                       <span className="text-slate-400">Technician:</span>
                       <div className="font-medium text-slate-800 dark:text-slate-200">
-                        {jc?.technician}
+                        {jc?.technician || 'General Tech'}
                       </div>
                     </div>
                     <div>
@@ -469,7 +654,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                         {jc?.service_type}
                       </div>
                     </div>
-                    <div>
+                    <div className="col-span-2">
                       <span className="text-slate-400">Workshop Branch:</span>
                       <div className="text-slate-700 dark:text-slate-300 font-medium">
                         {jc?.branch_name}
@@ -501,7 +686,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                               {hist.call_status} ({hist.duration_seconds}s)
                             </span>
                             <span className="text-[10px] text-slate-400">
-                              {new Date(hist.called_at).toLocaleDateString()}
+                              {formatIndianDate(hist.called_at)}
                             </span>
                           </div>
                           {hist.voc && (
@@ -584,10 +769,35 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
 
             {/* Callback Datetime Picker if Callback Requested */}
             {callStatus === 'Callback Requested' && (
-              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 space-y-2">
-                <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4" />
-                  Schedule Customer Callback Reminder
+              <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4" />
+                    Schedule Customer Callback Reminder
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuickCallback(2)}
+                      className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-800/40 text-[10px] font-semibold text-amber-900 dark:text-amber-200 transition"
+                    >
+                      +2 Hours
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCallbackNextDay(10)}
+                      className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-800/40 text-[10px] font-semibold text-amber-900 dark:text-amber-200 transition"
+                    >
+                      Tmrw 10 AM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCallbackNextDay(15)}
+                      className="px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-800/40 text-[10px] font-semibold text-amber-900 dark:text-amber-200 transition"
+                    >
+                      Tmrw 3 PM
+                    </button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -598,7 +808,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                       type="datetime-local"
                       value={callbackAt}
                       onChange={(e) => setCallbackAt(e.target.value)}
-                      className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 p-1.5 text-xs"
+                      className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 p-1.5 text-xs text-slate-900 dark:text-white"
                       required
                     />
                   </div>
@@ -611,7 +821,7 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
                       placeholder="e.g. Call after 4 PM when customer is free"
                       value={callbackNote}
                       onChange={(e) => setCallbackNote(e.target.value)}
-                      className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 p-1.5 text-xs"
+                      className="w-full rounded border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 p-1.5 text-xs text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -874,8 +1084,13 @@ export default function CallConsoleModal({ queueId, isOpen, onClose, onQueueUpda
 
         {/* BOTTOM ACTION BAR */}
         <div className="h-16 border-t border-slate-200 dark:border-slate-800 px-6 flex items-center justify-between bg-slate-50 dark:bg-slate-900 shrink-0">
-          <div className="text-xs text-slate-400">
-            Tip: Press <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono text-[10px]">Ctrl+Enter</kbd> to Save & Next
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="font-semibold text-slate-500">Shortcuts:</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 font-bold">Ctrl+Enter</kbd> or <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 font-bold">Alt+S</kbd> Save & Next
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 font-bold">Alt+P</kbd> Timer
+            <span className="text-slate-300 dark:text-slate-700">•</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 font-mono text-[10px] text-slate-700 dark:text-slate-300 font-bold">Esc</kbd> Close
           </div>
 
           <div className="flex items-center gap-3">

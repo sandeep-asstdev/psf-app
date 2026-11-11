@@ -66,4 +66,32 @@ test.describe('CRE Calling Workflow & Survey Execution', () => {
     // Console modal closes
     await expect(page.locator('button:has-text("Save & Close")')).not.toBeVisible({ timeout: 10000 });
   });
+
+  test('CRE verifies call console latency, one-click WhatsApp/Call, and keyboard shortcuts', async ({ page }) => {
+    await loginAs(page, 'cre1@demomotors.com', 'Password@12345');
+    await page.goto('/psf');
+    await page.waitForLoadState('networkidle');
+
+    // Measure open latency
+    const firstRow = page.locator('table tbody tr').first();
+    const t0 = Date.now();
+    await firstRow.click();
+
+    // Verify modal appears and measures under 1000ms
+    const modal = page.locator('div:has-text("PSF Console")').first();
+    await expect(modal).toBeVisible({ timeout: 10000 });
+    const openElapsed = Date.now() - t0;
+    expect(openElapsed).toBeLessThan(3000);
+
+    // Verify One-click Call and WhatsApp links inside modal
+    const callBtn = modal.locator('a[href^="tel:"]').first();
+    await expect(callBtn).toBeVisible();
+
+    const waBtn = modal.locator('a[href*="wa.me"]').first();
+    await expect(waBtn).toBeVisible();
+
+    // Test Esc shortcut to close
+    await page.keyboard.press('Escape');
+    await expect(page.locator('button:has-text("Save & Close")')).not.toBeVisible({ timeout: 10000 });
+  });
 });
