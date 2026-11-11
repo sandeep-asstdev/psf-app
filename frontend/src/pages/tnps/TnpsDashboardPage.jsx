@@ -100,11 +100,17 @@ export default function TnpsDashboardPage() {
 
   const fetchMasters = async () => {
     try {
-      const [branchesRes, usersRes, brandsRes] = await Promise.all([
+      const calls = [
         api.get('/masters/branches'),
-        api.get('/users?limit=100'),
         api.get('/masters/brands'),
-      ]);
+      ];
+      if (canAllocate) {
+        calls.push(api.get('/users?limit=100'));
+      }
+      const results = await Promise.all(calls);
+      const branchesRes = results[0];
+      const brandsRes = results[1];
+      const usersRes = canAllocate ? results[2] : null;
 
       const brands = brandsRes.data || [];
       const atherBrand = brands.find(
@@ -122,7 +128,9 @@ export default function TnpsDashboardPage() {
         setAtherBranches(allBranches.filter((br) => br.name?.toLowerCase().includes('ather')));
       }
 
-      setCreUsers(usersRes.data.items || []);
+      if (usersRes) {
+        setCreUsers(usersRes.data.items || []);
+      }
     } catch (err) {
       console.error('Failed to load masters:', err);
     }

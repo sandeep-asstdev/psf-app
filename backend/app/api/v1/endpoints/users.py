@@ -57,7 +57,13 @@ async def get_users(
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
-    current_user: User = Depends(require_any(PermissionKey.USER_CREATE, PermissionKey.USER_EDIT)),
+    current_user: User = Depends(require_any(
+        PermissionKey.USER_CREATE,
+        PermissionKey.USER_EDIT,
+        PermissionKey.CALL_ALLOCATE,
+        PermissionKey.COMPLAINT_VIEW,
+        PermissionKey.REPORT_VIEW,
+    )),
     db: AsyncSession = Depends(get_db),
 ):
     """List users in tenant with filters and pagination."""
@@ -129,7 +135,13 @@ async def create_new_user(
 @router.get("/{user_id}", response_model=UserDetailResponse)
 async def get_user_details(
     user_id: uuid.UUID,
-    current_user: User = Depends(require_any(PermissionKey.USER_CREATE, PermissionKey.USER_EDIT)),
+    current_user: User = Depends(require_any(
+        PermissionKey.USER_CREATE,
+        PermissionKey.USER_EDIT,
+        PermissionKey.CALL_ALLOCATE,
+        PermissionKey.COMPLAINT_VIEW,
+        PermissionKey.REPORT_VIEW,
+    )),
     db: AsyncSession = Depends(get_db),
 ):
     """Get single user profile and assigned scopes."""

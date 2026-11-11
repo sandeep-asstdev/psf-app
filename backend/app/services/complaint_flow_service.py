@@ -552,6 +552,7 @@ async def get_tnps_statistics(
 async def list_advisor_tasks(
     db: AsyncSession,
     tenant_id: uuid.UUID,
+    current_user: Optional[User] = None,
     advisor_name: Optional[str] = None,
     status_filter: Optional[str] = None,
 ) -> List[AdvisorCallListItem]:
@@ -575,6 +576,21 @@ async def list_advisor_tasks(
         .order_by(Call.called_at.desc())
         .limit(50)
     )
+
+    if current_user:
+        from app.core.permissions import get_user_effective_permissions, DataScope, PermissionKey
+        eff = await get_user_effective_permissions(db, current_user)
+        is_super = eff.get("is_super_admin", False)
+        perms = eff.get("permissions", {})
+        scope = perms.get(PermissionKey.ADVISOR_ACTION, DataScope.ALL)
+        role_name = eff.get("role_name", "").upper()
+        if not is_super and (scope == DataScope.OWN or role_name in ["SERVICE_ADVISOR", "ADVISOR"]):
+            stmt = stmt.where(
+                or_(
+                    JobCard.service_advisor_id == current_user.id,
+                    JobCard.service_advisor_name.ilike(f"%{current_user.full_name}%"),
+                )
+            )
 
     rows = (await db.execute(stmt)).all()
     results = []

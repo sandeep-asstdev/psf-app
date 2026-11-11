@@ -52,6 +52,7 @@ export default function DataImportPage() {
   const [branches, setBranches] = useState([]);
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [loadingMasters, setLoadingMasters] = useState(true);
   const [duplicateAction, setDuplicateAction] = useState('SKIP');
 
   // Ingestion Result
@@ -66,6 +67,7 @@ export default function DataImportPage() {
 
   const fetchMasters = async () => {
     try {
+      setLoadingMasters(true);
       const [brandsRes, branchesRes] = await Promise.all([
         api.get('/masters/brands'),
         api.get('/masters/branches'),
@@ -76,6 +78,8 @@ export default function DataImportPage() {
       if (branchesRes.data?.length > 0) setSelectedBranchId(branchesRes.data[0].id);
     } catch (err) {
       console.error('Failed to load masters:', err);
+    } finally {
+      setLoadingMasters(false);
     }
   };
 
@@ -344,7 +348,7 @@ export default function DataImportPage() {
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={!selectedFile || loading}
+              disabled={!selectedFile || loading || loadingMasters}
               onClick={handleImport}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -447,34 +451,43 @@ export default function DataImportPage() {
               </span>
             </div>
 
-            {importResult.allocation_summary?.assigned_cres?.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {importResult.allocation_summary.assigned_cres.map((cre, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-slate-700 shadow-sm flex items-center justify-between"
-                  >
-                    <div>
-                      <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>{cre.user_name}</span>
+            {(() => {
+              const assigned = importResult.allocation_summary?.assigned_cres?.length
+                ? importResult.allocation_summary.assigned_cres
+                : importResult.allocation_summary?.per_cre
+                ? Object.values(importResult.allocation_summary.per_cre)
+                    .filter((d) => d.count > 0)
+                    .map((d) => ({ user_name: d.name, count: d.count }))
+                : [];
+              return assigned.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {assigned.map((cre, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-slate-700 shadow-sm flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <UserCheck className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>{cre.user_name}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">Assigned CRE</div>
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">Assigned CRE</div>
+                      <div className="text-right">
+                        <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                          {cre.count}
+                        </span>
+                        <span className="text-[10px] text-slate-400 block font-medium">calls assigned</span>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <span className="text-lg font-black text-blue-600 dark:text-blue-400">
-                        {cre.count}
-                      </span>
-                      <span className="text-[10px] text-slate-400 block font-medium">calls assigned</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-600 dark:text-slate-300 py-1">
-                Calls were generated and queued for assignment in the PSF workspace.
-              </div>
-            )}
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-600 dark:text-slate-300 py-1">
+                  Calls were generated and queued for assignment in the PSF workspace.
+                </div>
+              );
+            })()}
           </div>
 
           {/* Error Report if any errors */}

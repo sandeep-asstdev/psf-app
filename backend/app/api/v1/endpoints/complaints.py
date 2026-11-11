@@ -147,7 +147,7 @@ async def get_advisor_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     """Lists customer dissatisfaction feedback allocated to service advisors for corrective action."""
-    return await list_advisor_tasks(db, current_user.tenant_id, status_filter=status)
+    return await list_advisor_tasks(db, current_user.tenant_id, current_user=current_user, status_filter=status)
 
 
 @router.post("/advisors/corrections")

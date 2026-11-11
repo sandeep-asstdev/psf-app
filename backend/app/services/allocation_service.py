@@ -656,6 +656,10 @@ async def allocate_queue_items(
         "allocated_count": allocated_count,
         "unallocated_count": unallocated_count,
         "per_cre": per_cre_summary,
+        "assigned_cres": [
+            {"user_id": str(uid), "user_name": d["name"], "count": d["count"], "role": d.get("role", "CRE")}
+            for uid, d in per_cre_summary.items() if d["count"] > 0
+        ],
         "present_cre_names": [c["full_name"] for c in present_cres],
     }
 

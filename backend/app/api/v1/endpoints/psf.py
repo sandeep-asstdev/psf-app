@@ -63,9 +63,14 @@ async def get_psf_dashboard_stats(
     scope = eff.get("permissions", {}).get(PermissionKey.CALL_VIEW, DataScope.ALL)
     user_role_name = eff.get("role_name", "").upper()
 
-    if not eff.get("is_super_admin", False) and (scope == DataScope.OWN or user_role_name in ["CRE", "BRANCH_CRE"]):
-        # A CRE only sees their own assigned calls on their dashboard
-        cre_id = current_user.id
+    if not eff.get("is_super_admin", False):
+        if scope == DataScope.OWN or user_role_name in ["CRE", "BRANCH_CRE"]:
+            # A CRE only sees their own assigned calls on their dashboard
+            cre_id = current_user.id
+        elif scope == DataScope.ASSIGNED_BRANCHES:
+            assigned_branches = [uuid.UUID(b) for b in eff.get("assigned_branches", []) if b]
+            if assigned_branches and (not branch_id or branch_id not in assigned_branches):
+                branch_id = assigned_branches[0]
 
     return await get_dashboard_stats(
         db=db,

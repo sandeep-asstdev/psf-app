@@ -57,10 +57,19 @@ export default function HomePage() {
   const showAdminViews = isSuperAdmin || isCreAdmin || can('call.allocate');
 
   useEffect(() => {
+    if (!can('call.view')) {
+      if (can('advisor.action')) {
+        navigate('/advisor', { replace: true });
+      } else if (can('complaint.view')) {
+        navigate('/complaints', { replace: true });
+      }
+      return;
+    }
     fetchData();
-  }, []);
+  }, [can]);
 
   const fetchData = async () => {
+    if (!can('call.view')) return;
     try {
       setLoading(true);
       const [statsRes, queuesRes] = await Promise.all([

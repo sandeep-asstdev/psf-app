@@ -115,7 +115,10 @@ async def login(
         samesite=settings.COOKIE_SAMESITE,
     )
 
-    permissions = user.role.permissions if user.role and user.role.permissions else []
+    effective = await get_user_effective_permissions(db, user)
+    permissions = list(effective.get("permissions", {}).keys())
+    if not permissions and user.role and user.role.permissions:
+        permissions = user.role.permissions
 
     return TokenResponse(
         access_token=access_token,

@@ -333,7 +333,11 @@ def apply_data_scope(
             return query.where(model.branch_id.in_(assigned_branches))
         elif hasattr(model, "job_card_id"):
             from app.models.service import JobCard
-            return query.join(JobCard, model.job_card_id == JobCard.id).where(JobCard.branch_id.in_(assigned_branches))
+            return query.where(
+                model.job_card_id.in_(
+                    select(JobCard.id).where(JobCard.branch_id.in_(assigned_branches))
+                )
+            )
         return query
 
     if scope == DataScope.OWN:
@@ -346,10 +350,14 @@ def apply_data_scope(
             return query.where(model.called_by_id == current_user.id)
         elif hasattr(model, "job_card_id"):
             from app.models.service import JobCard
-            return query.join(JobCard, model.job_card_id == JobCard.id).where(
-                or_(
-                    JobCard.service_advisor_id == current_user.id,
-                    JobCard.uploaded_by_id == current_user.id,
+            return query.where(
+                model.job_card_id.in_(
+                    select(JobCard.id).where(
+                        or_(
+                            JobCard.service_advisor_id == current_user.id,
+                            JobCard.uploaded_by_id == current_user.id,
+                        )
+                    )
                 )
             )
 

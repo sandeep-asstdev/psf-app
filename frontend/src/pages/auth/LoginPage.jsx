@@ -43,7 +43,13 @@ export default function LoginPage() {
     e.preventDefault();
     const success = await login(email, password);
     if (success) {
-      navigate('/');
+      const authUser = useAuthStore.getState().user;
+      const can = useAuthStore.getState().can;
+      if (authUser?.role_name === 'SERVICE_ADVISOR' || (can('advisor.action') && !can('call.view'))) {
+        navigate('/advisor');
+      } else {
+        navigate('/');
+      }
     }
   };
 

@@ -43,6 +43,14 @@ async def get_report_summary(
     db: AsyncSession = Depends(get_db),
 ):
     """Retrieves full aggregated analytics dashboard metrics, trends, and leaderboards."""
+    from app.core.permissions import get_user_effective_permissions, DataScope
+    eff = await get_user_effective_permissions(db, current_user)
+    scope = eff.get("permissions", {}).get(PermissionKey.REPORT_VIEW, DataScope.ALL)
+    if not eff.get("is_super_admin", False) and scope == DataScope.ASSIGNED_BRANCHES:
+        assigned_branches = [uuid.UUID(b) for b in eff.get("assigned_branches", []) if b]
+        if assigned_branches and (not branch_id or branch_id not in assigned_branches):
+            branch_id = assigned_branches[0]
+
     return await get_comprehensive_report_data(
         db=db,
         tenant_id=current_user.tenant_id,
@@ -69,6 +77,14 @@ async def export_report_excel(
     db: AsyncSession = Depends(get_db),
 ):
     """Exports multi-tab executive report to an Excel .xlsx spreadsheet."""
+    from app.core.permissions import get_user_effective_permissions, DataScope
+    eff = await get_user_effective_permissions(db, current_user)
+    scope = eff.get("permissions", {}).get(PermissionKey.REPORT_EXPORT, DataScope.ALL)
+    if not eff.get("is_super_admin", False) and scope == DataScope.ASSIGNED_BRANCHES:
+        assigned_branches = [uuid.UUID(b) for b in eff.get("assigned_branches", []) if b]
+        if assigned_branches and (not branch_id or branch_id not in assigned_branches):
+            branch_id = assigned_branches[0]
+
     report_data = await get_comprehensive_report_data(
         db=db,
         tenant_id=current_user.tenant_id,

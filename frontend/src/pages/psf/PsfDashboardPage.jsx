@@ -108,15 +108,19 @@ export default function PsfDashboardPage() {
 
   const fetchMasters = async () => {
     try {
-      const [brandsRes, branchesRes, usersRes] = await Promise.all([
+      const calls = [
         api.get('/masters/brands'),
         api.get('/masters/branches'),
-        api.get('/users?limit=100'),
-      ]);
-      setBrands(brandsRes.data || []);
-      setBranches(branchesRes.data || []);
-      // Filter CRE / staff callers
-      setCreUsers(usersRes.data.items || []);
+      ];
+      if (canAllocate) {
+        calls.push(api.get('/users?limit=100'));
+      }
+      const results = await Promise.all(calls);
+      setBrands(results[0]?.data || []);
+      setBranches(results[1]?.data || []);
+      if (canAllocate && results[2]) {
+        setCreUsers(results[2]?.data?.items || []);
+      }
     } catch (err) {
       console.error('Failed to load masters:', err);
     }
