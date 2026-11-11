@@ -58,8 +58,8 @@ export default function AdminConsolePage() {
 
   // Tab definitions: strictly filter based on dynamic permissions
   const availableTabs = [
+    { id: 'tenants', label: 'Tenants & Dealerships', icon: Building2, visible: isSuperAdmin },
     { id: 'programs', label: 'Follow-Up Programs', icon: CalendarCheck, visible: isSuperAdmin || can('config.manage') || can('program.manage') },
-    { id: 'packs_wizard', label: 'Packs & Wizard', icon: Package, visible: isSuperAdmin || can('config.manage') },
     { id: 'labels', label: 'Labels & Terminology', icon: Tag, visible: isSuperAdmin || can('config.manage') },
     { id: 'kpi_tags', label: 'KPI Tags', icon: Tag, visible: isSuperAdmin || can('config.manage') },
     { id: 'outcome_rules', label: 'Outcome Rules', icon: Sparkles, visible: isSuperAdmin || can('config.manage') },
@@ -96,6 +96,16 @@ export default function AdminConsolePage() {
             Configure dealership multi-brand hierarchy, follow-up programs, role matrix, questionnaires, and policies without code changes.
           </p>
         </div>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('tenants')}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+          >
+            <Building2 className="h-4 w-4" />
+            <span>+ Create New Tenant</span>
+          </button>
+        )}
       </div>
 
       {/* Navigation Tabs */}
@@ -122,6 +132,7 @@ export default function AdminConsolePage() {
 
       {/* Active Tab Content */}
       <div className="pt-2">
+        {activeTab === 'tenants' && <DealershipWizardTab />}
         {activeTab === 'programs' && <ProgramsTab />}
         {activeTab === 'packs_wizard' && <DealershipWizardTab />}
         {activeTab === 'labels' && <LabelsTab />}

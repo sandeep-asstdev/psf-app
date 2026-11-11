@@ -1,33 +1,59 @@
 /**
  * ============================================================================
- * FILE PURPOSE: Dealership Onboarding Wizard & Config Packs Management Tab.
- * Allows Super Admins to:
- * 1. Onboard new dealerships using a 4-step wizard with pre-built OEM config packs.
- * 2. Clone a pack (Hyundai, Tata, MG, Ather, Blank) into the active dealership.
- * 3. Export full dealership configuration as JSON.
- * 4. Import/validate JSON config packs.
+ * FILE PURPOSE: Multi-Tenant Dealership Management & Onboarding Wizard Tab.
+ * STRICTLY RESTRICTED TO: Super Admin (L1).
+ * 
+ * KEY CAPABILITIES:
+ * 1. View all registered dealership tenants with real-time stats (brands, branches, users).
+ * 2. 4-Step Dealership Onboarding Wizard:
+ *    - Step 1: Dealership Tenant Name, Slug, & Base Config Pack
+ *    - Step 2: OEM Brand & Initial Workshop Branch
+ *    - Step 3: Initial Dealership Super Admin Account
+ *    - Step 4: Review & Instant Deployment
+ * 3. OEM Configuration Packs (Hyundai, Tata, MG, Ather, Blank) Management.
+ * 4. Export & Import full dealership configurations as validated JSON.
  * ============================================================================
  */
 import React, { useState, useEffect } from 'react';
 import {
+  Building2,
   Package,
   Sparkles,
   Download,
   Upload,
   CheckCircle2,
-  Building,
-  UserPlus,
+  Users,
   Layers,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
+  ShieldAlert,
   RefreshCw,
+  Search,
+  PlusCircle,
+  ExternalLink,
+  Store,
+  Check,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../../services/api';
+import { useAuthStore } from '../../../store/authStore';
 
 export default function DealershipWizardTab() {
+  const { user } = useAuthStore();
+  const isSuperAdmin = !!(user?.is_super_admin || user?.role_name === 'SUPER_ADMIN' || user?.email === 'admin@apexauto.com');
+
+  // Sub-tabs: 'list' | 'create' | 'packs'
+  const [subView, setSubView] = useState('list');
+
+  // Tenant List State
+  const [tenants, setTenants] = useState([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Packs State
   const [packs, setPacks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [packsLoading, setPacksLoading] = useState(true);
   const [selectedPack, setSelectedPack] = useState('BLANK');
   const [isCloning, setIsCloning] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -35,6 +61,8 @@ export default function DealershipWizardTab() {
 
   // Wizard State
   const [wizardStep, setWizardStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdTenantResult, setCreatedTenantResult] = useState(null);
   const [wizardData, setWizardData] = useState({
     name: '',
     slug: '',
@@ -53,19 +81,48 @@ export default function DealershipWizardTab() {
   const [validationResult, setValidationResult] = useState(null);
 
   useEffect(() => {
-    fetchPacks();
-  }, []);
+    if (isSuperAdmin) {
+      fetchTenants();
+      fetchPacks();
+    }
+  }, [isSuperAdmin]);
+
+  const fetchTenants = async () => {
+    try {
+      setTenantsLoading(true);
+      const res = await api.get('/config/tenants');
+      setTenants(res.data || []);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to load dealership tenants');
+    } finally {
+      setTenantsLoading(false);
+    }
+  };
 
   const fetchPacks = async () => {
     try {
-      setLoading(true);
+      setPacksLoading(true);
       const res = await api.get('/config/packs');
       setPacks(res.data || []);
     } catch (err) {
       toast.error('Failed to load configuration packs');
     } finally {
-      setLoading(false);
+      setPacksLoading(false);
     }
+  };
+
+  const handleNameChange = (e) => {
+    const val = e.target.value;
+    const autoSlug = val
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    setWizardData((prev) => ({
+      ...prev,
+      name: val,
+      slug: prev.slug === '' || prev.slug === prev.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') ? autoSlug : prev.slug,
+    }));
   };
 
   const handleClonePack = async () => {
@@ -132,364 +189,806 @@ export default function DealershipWizardTab() {
 
   const handleWizardSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       const res = await api.post('/config/dealerships/wizard', wizardData);
-      toast.success(res.data.message || 'Dealership onboarded successfully!');
-      setWizardStep(1);
-      setWizardData({
-        name: '',
-        slug: '',
-        brand_name: 'Custom Brand',
-        brand_code: 'CUSTOM',
-        branch_name: 'Main Workshop',
-        branch_code: 'MAIN-01',
-        admin_name: '',
-        admin_email: '',
-        admin_password: '',
-        pack_code: 'BLANK',
-      });
+      toast.success(res.data.message || 'Dealership tenant onboarded successfully!');
+      setCreatedTenantResult(res.data);
+      fetchTenants();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to onboard dealership');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  const resetWizard = () => {
+    setWizardStep(1);
+    setCreatedTenantResult(null);
+    setWizardData({
+      name: '',
+      slug: '',
+      brand_name: 'Custom Brand',
+      brand_code: 'CUSTOM',
+      branch_name: 'Main Workshop',
+      branch_code: 'MAIN-01',
+      admin_name: '',
+      admin_email: '',
+      admin_password: '',
+      pack_code: 'BLANK',
+    });
+  };
+
+  // If not super admin, strictly deny access
+  if (!isSuperAdmin) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center max-w-xl mx-auto my-12">
+        <ShieldAlert className="w-12 h-12 text-red-500 mx-auto mb-3" />
+        <h3 className="text-lg font-bold text-red-900">Access Restricted</h3>
+        <p className="text-sm text-red-700 mt-2">
+          Only Super Administrators (L1) have permission to create new dealership tenants or manage multi-tenant platform configurations.
+        </p>
+      </div>
+    );
+  }
+
+  const filteredTenants = tenants.filter(
+    (t) =>
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Top Banner & Sub-View Switcher */}
       <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-indigo-600" />
-            Config Packs &amp; Dealership Onboarding
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Deploy pre-packaged OEM configurations (Hyundai, Tata, MG, Ather, Blank) or export/import versioned JSON templates.
+          <div className="flex items-center gap-2">
+            <Building2 className="w-6 h-6 text-blue-600" />
+            <h2 className="text-xl font-bold text-slate-900">
+              Dealership Tenant Management
+            </h2>
+            <span className="bg-blue-100 text-blue-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" /> Super Admin Only
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            Create and manage isolated multi-brand dealership tenants, deploy pre-packaged OEM packs, and inspect platform tenants.
           </p>
         </div>
-        <button
-          onClick={handleExportConfig}
-          disabled={isExporting}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-medium transition"
-        >
-          {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          Export Active Config (JSON)
-        </button>
-      </div>
 
-      {/* Available Packs Grid */}
-      <div className="space-y-4">
-        <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-          <Layers className="w-4 h-4 text-indigo-600" />
-          Pre-Configured Packs Catalogue
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {packs.map((p) => {
-            const isSelected = selectedPack === p.code;
-            return (
-              <div
-                key={p.code}
-                onClick={() => setSelectedPack(p.code)}
-                className={`cursor-pointer rounded-xl p-4 border transition flex flex-col justify-between ${
-                  isSelected
-                    ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
-                      {p.code}
-                    </span>
-                    <span className="text-[11px] text-slate-400">v{p.version}</span>
-                  </div>
-                  <h4 className="font-bold text-slate-900 text-sm mt-2">{p.name}</h4>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-3">{p.description}</p>
-                </div>
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Brand: {p.brand_code}</span>
-                  {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-600" />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Clone Selected Pack into Current Dealership */}
-        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold text-slate-800">
-              Apply Pack to Active Dealership: <span className="font-mono text-indigo-600">{selectedPack}</span>
-            </div>
-            <div className="text-xs text-slate-500 mt-0.5">
-              Installs programs, questionnaires, scales, outcome rules, and labels from the selected pack.
-            </div>
-          </div>
+        {/* View Switcher Controls */}
+        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
           <button
-            onClick={handleClonePack}
-            disabled={isCloning}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium shadow-sm transition"
+            type="button"
+            onClick={() => setSubView('list')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              subView === 'list'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            {isCloning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Clone Into Dealership
+            All Tenants ({tenants.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSubView('create');
+              if (createdTenantResult) resetWizard();
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition flex items-center gap-1 ${
+              subView === 'create'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <PlusCircle className="w-3.5 h-3.5" />
+            Create Tenant
+          </button>
+          <button
+            type="button"
+            onClick={() => setSubView('packs')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+              subView === 'packs'
+                ? 'bg-white text-blue-600 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            OEM Packs &amp; JSON
           </button>
         </div>
       </div>
 
-      {/* Two Column Layout: Wizard and Import/Export */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Dealership Onboarding Wizard */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-5">
-          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <Building className="w-4 h-4 text-indigo-600" />
-                Create Dealership Wizard
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Onboard a new dealership tenant with brand, branch, admin user, and config pack.
-              </p>
+      {/* SUB-VIEW 1: TENANTS LIST */}
+      {subView === 'list' && (
+        <div className="space-y-4">
+          {/* Header Action Bar */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div className="relative w-full sm:w-80">
+              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search tenants by name or slug..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-            <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
-              Step {wizardStep} of 3
-            </span>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={fetchTenants}
+                disabled={tenantsLoading}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${tenantsLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubView('create');
+                  resetWizard();
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                <PlusCircle className="w-4 h-4" />
+                + Create New Tenant
+              </button>
+            </div>
           </div>
 
-          <form onSubmit={handleWizardSubmit} className="space-y-4">
-            {wizardStep === 1 && (
-              <div className="space-y-3">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Step 1: Dealership Details
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Dealership Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={wizardData.name}
-                    onChange={(e) => setWizardData({ ...wizardData, name: e.target.value })}
-                    placeholder="e.g. Metro Mobility Motors"
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Tenant Slug</label>
-                  <input
-                    type="text"
-                    required
-                    value={wizardData.slug}
-                    onChange={(e) => setWizardData({ ...wizardData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    placeholder="e.g. metro-mobility"
-                    className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Select Config Pack</label>
-                  <select
-                    value={wizardData.pack_code}
-                    onChange={(e) => setWizardData({ ...wizardData, pack_code: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {packs.map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.name} ({p.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(2)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium"
-                  >
-                    Next: Brand &amp; Branch <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {wizardStep === 2 && (
-              <div className="space-y-3">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Step 2: Brand &amp; Branch
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Brand Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={wizardData.brand_name}
-                      onChange={(e) => setWizardData({ ...wizardData, brand_name: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Brand Code</label>
-                    <input
-                      type="text"
-                      required
-                      value={wizardData.brand_code}
-                      onChange={(e) => setWizardData({ ...wizardData, brand_code: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Workshop Branch Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={wizardData.branch_name}
-                      onChange={(e) => setWizardData({ ...wizardData, branch_name: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Branch Code</label>
-                    <input
-                      type="text"
-                      required
-                      value={wizardData.branch_code}
-                      onChange={(e) => setWizardData({ ...wizardData, branch_code: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg"
-                    />
-                  </div>
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(1)}
-                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(3)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium"
-                  >
-                    Next: Admin User <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {wizardStep === 3 && (
-              <div className="space-y-3">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Step 3: Initial Admin User
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Admin Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={wizardData.admin_name}
-                    onChange={(e) => setWizardData({ ...wizardData, admin_name: e.target.value })}
-                    placeholder="e.g. Rajesh Kumar"
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Admin Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={wizardData.admin_email}
-                    onChange={(e) => setWizardData({ ...wizardData, admin_email: e.target.value })}
-                    placeholder="admin@metromobility.com"
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={wizardData.admin_password}
-                    onChange={(e) => setWizardData({ ...wizardData, admin_password: e.target.value })}
-                    placeholder="Min 6 characters"
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
-                  />
-                </div>
-                <div className="pt-2 flex justify-between">
-                  <button
-                    type="button"
-                    onClick={() => setWizardStep(2)}
-                    className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-sm"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold shadow-sm"
-                  >
-                    Create Dealership &amp; Deploy Pack
-                  </button>
-                </div>
-              </div>
-            )}
-          </form>
+          {/* Tenants Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <th className="py-3 px-4">Dealership Tenant</th>
+                  <th className="py-3 px-4">Slug Identifier</th>
+                  <th className="py-3 px-4 text-center">OEM Brands</th>
+                  <th className="py-3 px-4 text-center">Workshop Branches</th>
+                  <th className="py-3 px-4 text-center">Users</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Created Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {tenantsLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                      Loading platform tenants...
+                    </td>
+                  </tr>
+                ) : filteredTenants.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-slate-500">
+                      No tenants found matching your search.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTenants.map((t) => (
+                    <tr key={t.id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-white text-xs shadow-sm"
+                            style={{ backgroundColor: t.primary_color || '#2563EB' }}
+                          >
+                            {t.name.charAt(0)}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 block">{t.name}</span>
+                            <span className="text-[10px] font-mono text-slate-400">{t.id.slice(0, 8)}...</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <code className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-mono font-medium">
+                          {t.slug}
+                        </code>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-semibold text-slate-800">{t.brands_count}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-semibold text-slate-800">{t.branches_count}</span>
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className="font-semibold text-slate-800">{t.users_count}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {t.is_active ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 text-[11px]">
+                        {t.created_at ? new Date(t.created_at).toLocaleDateString() : 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+      )}
 
-        {/* Config JSON Import & Validation */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-              <Upload className="w-4 h-4 text-indigo-600" />
-              Import Configuration Pack (JSON)
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Paste or inspect JSON config pack before importing into the dealership.
-            </p>
-          </div>
+      {/* SUB-VIEW 2: CREATE NEW TENANT WIZARD */}
+      {subView === 'create' && (
+        <div className="max-w-3xl mx-auto">
+          {createdTenantResult ? (
+            /* Creation Success Card */
+            <div className="bg-white rounded-xl border border-emerald-200 shadow-md p-8 text-center space-y-5">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+                <Check className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Dealership Tenant Created Successfully!</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  The new tenant has been isolated, initialized with OEM configurations, and is ready for use.
+                </p>
+              </div>
 
-          <textarea
-            rows={10}
-            value={importJsonText}
-            onChange={(e) => {
-              setImportJsonText(e.target.value);
-              setValidationResult(null);
-            }}
-            placeholder='Paste JSON pack here: { "pack_version": "1.0.0", "programs": [...], "questionnaires": [...], "rules": [...] }'
-            className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+              <div className="bg-slate-50 rounded-xl p-4 text-left text-xs font-mono border border-slate-200 space-y-2 max-w-lg mx-auto">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Tenant ID:</span>
+                  <span className="font-bold text-slate-800">{createdTenantResult.tenant_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Config Pack Cloned:</span>
+                  <span className="font-bold text-indigo-600">{createdTenantResult.pack_cloned}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Initial Admin User:</span>
+                  <span className="font-bold text-emerald-700">{wizardData.admin_email}</span>
+                </div>
+              </div>
 
-          {validationResult && (
-            <div
-              className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                validationResult.valid ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}
-            >
-              {validationResult.valid ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : null}
-              {validationResult.message}
+              <div className="flex justify-center gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setSubView('list')}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-semibold"
+                >
+                  View All Tenants
+                </button>
+                <button
+                  type="button"
+                  onClick={resetWizard}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm"
+                >
+                  + Create Another Tenant
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* 4-Step Wizard Form */
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              {/* Wizard Steps Header */}
+              <div className="bg-slate-50 border-b border-slate-200 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                      <Store className="w-5 h-5 text-blue-600" />
+                      Create New Dealership Tenant
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Follow the 4 steps to provision a new tenant, initialize brands/branches, and deploy OEM settings.
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
+                    Step {wizardStep} of 4
+                  </span>
+                </div>
+
+                {/* Stepper Indicator */}
+                <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                  <div
+                    className={`py-1.5 rounded font-bold border transition ${
+                      wizardStep === 1
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : wizardStep > 1
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-white text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    1. Dealership
+                  </div>
+                  <div
+                    className={`py-1.5 rounded font-bold border transition ${
+                      wizardStep === 2
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : wizardStep > 2
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-white text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    2. Brand &amp; Branch
+                  </div>
+                  <div
+                    className={`py-1.5 rounded font-bold border transition ${
+                      wizardStep === 3
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : wizardStep > 3
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                        : 'bg-white text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    3. Admin User
+                  </div>
+                  <div
+                    className={`py-1.5 rounded font-bold border transition ${
+                      wizardStep === 4
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    4. Review &amp; Deploy
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Body */}
+              <form onSubmit={handleWizardSubmit} className="p-6 space-y-5">
+                {/* STEP 1: Dealership Details */}
+                {wizardStep === 1 && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Step 1: Dealership Organization Details</h4>
+                      <p className="text-xs text-slate-500">Enter the legal dealership name and unique URL slug identifier.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Dealership Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={wizardData.name}
+                        onChange={handleNameChange}
+                        placeholder="e.g. Metro Mobility Motors"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Tenant URL Slug <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={wizardData.slug}
+                        onChange={(e) =>
+                          setWizardData({
+                            ...wizardData,
+                            slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+                          })
+                        }
+                        placeholder="e.g. metro-mobility"
+                        className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Unique slug used for domain isolation and API headers.
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Initial OEM Config Pack <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={wizardData.pack_code}
+                        onChange={(e) => setWizardData({ ...wizardData, pack_code: e.target.value })}
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      >
+                        {packs.map((p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name} ({p.code}) — {p.description || p.code}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Pre-configures follow-up programs, questionnaires, rating scales, and outcome rules.
+                      </span>
+                    </div>
+
+                    <div className="pt-4 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={!wizardData.name.trim() || !wizardData.slug.trim()}
+                        onClick={() => setWizardStep(2)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                      >
+                        Next: Brand &amp; Branch <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: Brand & Branch */}
+                {wizardStep === 2 && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Step 2: Primary OEM Brand &amp; Workshop Branch</h4>
+                      <p className="text-xs text-slate-500">Provision the initial brand and main service center for this dealership.</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Brand Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={wizardData.brand_name}
+                          onChange={(e) => setWizardData({ ...wizardData, brand_name: e.target.value })}
+                          placeholder="e.g. Hyundai or Ather"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Brand Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={wizardData.brand_code}
+                          onChange={(e) => setWizardData({ ...wizardData, brand_code: e.target.value.toUpperCase() })}
+                          placeholder="e.g. HYUNDAI"
+                          className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Main Workshop Branch <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={wizardData.branch_name}
+                          onChange={(e) => setWizardData({ ...wizardData, branch_name: e.target.value })}
+                          placeholder="e.g. Central Workshop"
+                          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          Branch Code <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={wizardData.branch_code}
+                          onChange={(e) => setWizardData({ ...wizardData, branch_code: e.target.value.toUpperCase() })}
+                          placeholder="e.g. MAIN-01"
+                          className="w-full px-3 py-2 text-sm font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setWizardStep(1)}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!wizardData.brand_name.trim() || !wizardData.branch_name.trim()}
+                        onClick={() => setWizardStep(3)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                      >
+                        Next: Admin User <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: Initial Admin Account */}
+                {wizardStep === 3 && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Step 3: Initial Dealership Admin Account</h4>
+                      <p className="text-xs text-slate-500">Create the primary administrator credentials for this new dealership.</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Admin Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={wizardData.admin_name}
+                        onChange={(e) => setWizardData({ ...wizardData, admin_name: e.target.value })}
+                        placeholder="e.g. Rajesh Kumar"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Admin Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={wizardData.admin_email}
+                        onChange={(e) => setWizardData({ ...wizardData, admin_email: e.target.value })}
+                        placeholder="admin@metromobility.com"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        Admin Password <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        value={wizardData.admin_password}
+                        onChange={(e) => setWizardData({ ...wizardData, admin_password: e.target.value })}
+                        placeholder="At least 6 characters"
+                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="pt-4 flex justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setWizardStep(2)}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!wizardData.admin_name.trim() || !wizardData.admin_email.trim() || wizardData.admin_password.length < 6}
+                        onClick={() => setWizardStep(4)}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                      >
+                        Next: Review &amp; Deploy <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: Review & Deploy */}
+                {wizardStep === 4 && (
+                  <div className="space-y-4">
+                    <div className="border-b border-slate-100 pb-2">
+                      <h4 className="text-sm font-bold text-slate-900">Step 4: Review &amp; Launch Dealership</h4>
+                      <p className="text-xs text-slate-500">Verify your settings before provisioning the new tenant database records.</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                      <div className="grid grid-cols-2 gap-2 border-b border-slate-200 pb-2">
+                        <div>
+                          <span className="text-slate-500 block">Dealership Name:</span>
+                          <span className="font-bold text-slate-900">{wizardData.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">URL Slug:</span>
+                          <span className="font-mono font-bold text-blue-600">{wizardData.slug}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 border-b border-slate-200 pb-2">
+                        <div>
+                          <span className="text-slate-500 block">Brand:</span>
+                          <span className="font-bold text-slate-900">{wizardData.brand_name} ({wizardData.brand_code})</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Branch Workshop:</span>
+                          <span className="font-bold text-slate-900">{wizardData.branch_name} ({wizardData.branch_code})</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 border-b border-slate-200 pb-2">
+                        <div>
+                          <span className="text-slate-500 block">Admin Account:</span>
+                          <span className="font-bold text-slate-900">{wizardData.admin_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block">Admin Email:</span>
+                          <span className="font-bold text-emerald-700">{wizardData.admin_email}</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-500 block">OEM Config Pack:</span>
+                        <span className="font-bold text-indigo-700">{wizardData.pack_code}</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setWizardStep(3)}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" /> Back
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition shadow-sm"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" /> Provisioning Tenant...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" /> Complete Onboarding &amp; Launch Dealership
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </form>
             </div>
           )}
+        </div>
+      )}
 
-          <div className="flex items-center justify-between pt-2">
+      {/* SUB-VIEW 3: OEM CONFIG PACKS & IMPORT/EXPORT */}
+      {subView === 'packs' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Package className="w-5 h-5 text-indigo-600" />
+                OEM Config Packs &amp; JSON Portability
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Deploy pre-packaged OEM configurations (Hyundai, Tata, MG, Ather, Blank) or export/import versioned JSON templates.
+              </p>
+            </div>
             <button
-              type="button"
-              onClick={handleValidateImport}
-              disabled={!importJsonText.trim()}
-              className="px-4 py-2 border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 rounded-lg text-xs font-semibold"
+              onClick={handleExportConfig}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold transition"
             >
-              Validate Schema
-            </button>
-            <button
-              type="button"
-              onClick={handleExecuteImport}
-              disabled={isImporting || !importJsonText.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm"
-            >
-              {isImporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-              Import &amp; Apply Config
+              {isExporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Export Active Config (JSON)
             </button>
           </div>
+
+          {/* Available Packs Grid */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              Pre-Configured Packs Catalogue
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {packs.map((p) => {
+                const isSelected = selectedPack === p.code;
+                return (
+                  <div
+                    key={p.code}
+                    onClick={() => setSelectedPack(p.code)}
+                    className={`cursor-pointer rounded-xl p-4 border transition flex flex-col justify-between ${
+                      isSelected
+                        ? 'border-indigo-600 bg-indigo-50/50 shadow-sm'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                          {p.code}
+                        </span>
+                        <span className="text-[11px] text-slate-400">v{p.version}</span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm mt-2">{p.name}</h4>
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-3">{p.description}</p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-400">Brand: {p.brand_code}</span>
+                      {isSelected && <CheckCircle2 className="w-4 h-4 text-indigo-600" />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Clone Selected Pack into Current Dealership */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold text-slate-800">
+                  Apply Pack to Active Dealership: <span className="font-mono text-indigo-600">{selectedPack}</span>
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Installs programs, questionnaires, scales, outcome rules, and labels from the selected pack.
+                </div>
+              </div>
+              <button
+                onClick={handleClonePack}
+                disabled={isCloning}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm transition"
+              >
+                {isCloning ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                Clone Into Active Dealership
+              </button>
+            </div>
+          </div>
+
+          {/* Config JSON Import & Validation */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
+            <div className="border-b border-slate-100 pb-3">
+              <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Upload className="w-4 h-4 text-indigo-600" />
+                Import Configuration Pack (JSON)
+              </h4>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Paste or inspect JSON config pack before importing into the dealership.
+              </p>
+            </div>
+
+            <textarea
+              rows={10}
+              value={importJsonText}
+              onChange={(e) => {
+                setImportJsonText(e.target.value);
+                setValidationResult(null);
+              }}
+              placeholder='Paste JSON pack here: { "pack_version": "1.0.0", "programs": [...], "questionnaires": [...], "rules": [...] }'
+              className="w-full p-3 font-mono text-xs border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+
+            {validationResult && (
+              <div
+                className={`p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
+                  validationResult.valid ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                {validationResult.valid ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : null}
+                {validationResult.message}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-2">
+              <button
+                type="button"
+                onClick={handleValidateImport}
+                disabled={!importJsonText.trim()}
+                className="px-4 py-2 border border-slate-300 hover:bg-slate-50 disabled:opacity-50 text-slate-700 rounded-lg text-xs font-semibold"
+              >
+                Validate Schema
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteImport}
+                disabled={isImporting || !importJsonText.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-semibold shadow-sm"
+              >
+                {isImporting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Import &amp; Apply Config
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
-
