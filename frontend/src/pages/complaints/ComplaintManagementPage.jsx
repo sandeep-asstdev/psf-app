@@ -367,9 +367,9 @@ export default function ComplaintManagementPage() {
             <table className="min-w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 uppercase tracking-wider font-semibold border-b border-slate-200 dark:border-slate-800">
                 <tr>
-                  <th className="py-3 px-3">Ticket / RO No</th>
-                  <th className="py-3 px-3">Customer & Contact</th>
-                  <th className="py-3 px-3">Vehicle Details</th>
+                  <th className="py-3 px-3">Customer Name</th>
+                  <th className="py-3 px-3">Reg No</th>
+                  <th className="py-3 px-3">Ticket / Job Card</th>
                   <th className="py-3 px-3">Category & Severity</th>
                   <th className="py-3 px-3">SLA Countdown</th>
                   <th className="py-3 px-3">Status</th>
@@ -384,7 +384,29 @@ export default function ComplaintManagementPage() {
                     className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition cursor-pointer"
                     onClick={() => handleOpenTicket(c.id)}
                   >
-                    {/* Ticket No */}
+                    {/* 1. Customer Name */}
+                    <td className="py-3 px-3">
+                      <div className="font-bold text-slate-900 dark:text-white text-xs">
+                        {c.customer_name || 'Customer'}
+                      </div>
+                      <div className="font-mono text-[11px] text-slate-400">
+                        {c.customer_phone_masked}
+                      </div>
+                    </td>
+
+                    {/* 2. Reg No of Vehicle */}
+                    <td className="py-3 px-3">
+                      <div className="font-mono font-semibold text-slate-900 dark:text-white">
+                        {c.vehicle_reg_no || 'N/A'}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+                        <span>{c.vehicle_model}</span>
+                        <span>•</span>
+                        <span>{c.brand_code}</span>
+                      </div>
+                    </td>
+
+                    {/* 3. Ticket & Job Card No */}
                     <td className="py-3 px-3">
                       <div className="font-mono font-bold text-red-600 dark:text-red-400">
                         {c.complaint_no}
@@ -394,29 +416,7 @@ export default function ComplaintManagementPage() {
                       </div>
                     </td>
 
-                    {/* Customer */}
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-900 dark:text-white">
-                        {c.customer_name}
-                      </div>
-                      <div className="font-mono text-[11px] text-slate-400">
-                        {c.customer_phone_masked}
-                      </div>
-                    </td>
-
-                    {/* Vehicle */}
-                    <td className="py-3 px-3">
-                      <div className="font-medium text-slate-800 dark:text-slate-200">
-                        {c.vehicle_model}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                        <span className="font-mono">{c.vehicle_reg_no}</span>
-                        <span>•</span>
-                        <span>{c.brand_code}</span>
-                      </div>
-                    </td>
-
-                    {/* Category & Severity */}
+                    {/* 4. Category & Severity */}
                     <td className="py-3 px-3">
                       <div className="font-medium text-slate-900 dark:text-white">
                         {c.category_name}

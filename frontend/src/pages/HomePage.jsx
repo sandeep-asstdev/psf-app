@@ -272,17 +272,16 @@ export default function HomePage() {
             <table className="min-w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700 whitespace-nowrap">
                 <tr>
-                  <th className="py-2.5 px-3">{t('JOB_CARD', 'Job Card')} No</th>
-                  <th className="py-2.5 px-3">Date</th>
                   <th className="py-2.5 px-3">Customer Name</th>
+                  <th className="py-2.5 px-3">Reg No</th>
+                  <th className="py-2.5 px-3">{t('JOB_CARD', 'Job Card')} No</th>
+                  <th className="py-2.5 px-3">Service Advisor</th>
                   <th className="py-2.5 px-3">Branch</th>
                   <th className="py-2.5 px-3">Brand</th>
-                  <th className="py-2.5 px-3">Reg No</th>
                   <th className="py-2.5 px-3">Model</th>
                   <th className="py-2.5 px-3">Service Type</th>
                   <th className="py-2.5 px-3">Status</th>
                   <th className="py-2.5 px-3">Followed By</th>
-                  <th className="py-2.5 px-3">Advisor</th>
                   <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>
@@ -293,15 +292,10 @@ export default function HomePage() {
                     onClick={() => navigate('/psf')}
                     className="hover:bg-blue-50/50 dark:hover:bg-slate-800/60 transition cursor-pointer"
                   >
-                    <td className="py-2.5 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
-                      {q.job_card_no}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
-                      {formatDisplayDate(q.job_card_date)}
-                    </td>
+                    {/* 1. Customer Name */}
                     <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
                       <div className="flex items-center gap-1.5">
-                        <span>{q.customer_name}</span>
+                        <span className="font-bold text-slate-900 dark:text-white">{q.customer_name || 'Customer'}</span>
                         {q.customer_phone_raw && (
                           <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
                             <a
@@ -323,8 +317,30 @@ export default function HomePage() {
                           </div>
                         )}
                       </div>
+                      <div className="text-[11px] text-slate-400 font-mono">{q.customer_phone_masked}</div>
                     </td>
+
+                    {/* 2. Reg No & Model */}
+                    <td className="py-2.5 px-3 font-mono font-semibold">
+                      <div className="text-slate-900 dark:text-white">{q.vehicle_reg_no}</div>
+                      <div className="text-[10px] text-slate-400 font-sans font-normal">{q.vehicle_model}</div>
+                    </td>
+
+                    {/* 3. Job Card No & Date */}
+                    <td className="py-2.5 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                      <div>{q.job_card_no}</div>
+                      <div className="text-[10px] text-slate-400 font-sans font-normal">{formatDisplayDate(q.job_card_date)}</div>
+                    </td>
+
+                    {/* 4. Service Advisor */}
+                    <td className="py-2.5 px-3 text-slate-800 dark:text-slate-200 font-medium">
+                      {q.service_advisor || 'Unassigned'}
+                    </td>
+
+                    {/* 5. Branch */}
                     <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">{q.branch_name}</td>
+
+                    {/* 6. Brand */}
                     <td className="py-2.5 px-3">
                       <span
                         className="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-xs"
@@ -333,9 +349,14 @@ export default function HomePage() {
                         {q.brand_code || q.brand_name}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 font-mono font-semibold">{q.vehicle_reg_no}</td>
+
+                    {/* 7. Model */}
                     <td className="py-2.5 px-3 font-medium">{q.vehicle_model}</td>
+
+                    {/* 8. Service Type */}
                     <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{q.service_type || 'Paid Service'}</td>
+
+                    {/* 9. Status */}
                     <td className="py-2.5 px-3">
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -363,7 +384,6 @@ export default function HomePage() {
                         <span className="text-slate-400 italic">Unassigned</span>
                       )}
                     </td>
-                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">{q.service_advisor || '—'}</td>
                     <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"

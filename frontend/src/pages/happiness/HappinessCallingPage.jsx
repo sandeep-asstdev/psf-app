@@ -307,10 +307,11 @@ export default function HappinessCallingPage() {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  <th className="py-3 px-4">Customer Name</th>
+                  <th className="py-3 px-4">Reg No</th>
                   <th className="py-3 px-4">Job Card</th>
-                  <th className="py-3 px-4">Customer & Contact</th>
-                  <th className="py-3 px-4">Vehicle</th>
-                  <th className="py-3 px-4">Branch & Advisor</th>
+                  <th className="py-3 px-4">Service Advisor</th>
+                  <th className="py-3 px-4">Branch</th>
                   <th className="py-3 px-4">Due Date</th>
                   <th className="py-3 px-4">Status & Attempts</th>
                   <th className="py-3 px-4 text-right">Action</th>
@@ -322,26 +323,11 @@ export default function HappinessCallingPage() {
                     key={item.id}
                     className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition group"
                   >
-                    {/* Job Card */}
+                    {/* 1. Customer Name */}
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-900 dark:text-white">
-                        {item.job_card_no}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {item.job_card_date}
-                      </div>
-                      {item.total_amount > 0 && (
-                        <div className="text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
-                          ₹{Number(item.total_amount).toLocaleString('en-IN')}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Customer */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        {item.customer_name}
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-sm">
+                        <User className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+                        <span>{item.customer_name || 'Customer'}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
@@ -370,25 +356,40 @@ export default function HappinessCallingPage() {
                       </div>
                     </td>
 
-                    {/* Vehicle */}
+                    {/* 2. Reg No of Vehicle */}
                     <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <Car className="w-3.5 h-3.5 text-slate-400" />
-                        {item.vehicle_model}
+                      <div className="font-mono font-semibold text-slate-900 dark:text-white text-sm">
+                        {item.vehicle_reg_no || 'N/A'}
                       </div>
-                      <div className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">
-                        {item.vehicle_reg_no}
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Car className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{item.vehicle_model}</span>
                       </div>
                     </td>
 
-                    {/* Branch & Advisor */}
+                    {/* 3. Job Card */}
                     <td className="py-3.5 px-4">
-                      <div className="text-slate-900 dark:text-white font-medium">
-                        {item.branch_name}
+                      <div className="font-mono font-semibold text-blue-600 dark:text-blue-400 text-sm">
+                        {item.job_card_no}
                       </div>
                       <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        SA: {item.service_advisor || 'Unassigned'}
+                        {item.job_card_date}
                       </div>
+                      {item.total_amount > 0 && (
+                        <div className="text-xs font-mono font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          ₹{Number(item.total_amount).toLocaleString('en-IN')}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 4. Service Advisor */}
+                    <td className="py-3.5 px-4 text-slate-800 dark:text-slate-200 font-medium text-sm">
+                      {item.service_advisor || 'Unassigned'}
+                    </td>
+
+                    {/* 5. Branch */}
+                    <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">
+                      {item.branch_name}
                     </td>
 
                     {/* Due Date */}

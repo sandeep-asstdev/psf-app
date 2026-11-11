@@ -633,9 +633,10 @@ export default function TnpsDashboardPage() {
                     />
                   </th>
                 )}
+                <th className="p-3">Customer Name</th>
+                <th className="p-3">Reg No</th>
                 <th className="p-3">Job Card</th>
-                <th className="p-3">Customer & Phone</th>
-                <th className="p-3">Vehicle Details</th>
+                <th className="p-3">Service Advisor</th>
                 <th className="p-3">Workshop Branch</th>
                 <th className="p-3">Status</th>
                 <th className="p-3">Assigned Caller</th>
@@ -684,22 +685,58 @@ export default function TnpsDashboardPage() {
                           />
                         </td>
                       )}
-                      <td className="p-3 font-mono font-semibold text-slate-900 dark:text-white">
-                        {q.job_card_no}
+                      {/* 1. Customer Name */}
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900 dark:text-white text-xs">
+                          {q.customer_name || 'Customer'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-1.5">
+                          <span>{q.customer_phone_masked || q.customer_phone_raw}</span>
+                          {q.customer_phone_raw && (
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              <a
+                                href={`tel:${q.customer_phone_raw}`}
+                                className="text-emerald-600 hover:text-emerald-700 p-0.5"
+                                title={`Call ${q.customer_phone_masked}`}
+                              >
+                                <Phone className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={`https://wa.me/91${q.customer_phone_raw}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-green-600 hover:text-green-700 p-0.5"
+                                title="WhatsApp Chat"
+                              >
+                                <MessageSquare className="h-3 w-3" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 2. Reg No of Vehicle */}
+                      <td className="p-3 font-mono">
+                        <div className="font-semibold text-slate-900 dark:text-white text-xs">
+                          {q.vehicle_reg_no || 'N/A'}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-sans">{q.vehicle_model || 'Ather 450X'}</div>
+                      </td>
+
+                      {/* 3. Job Card */}
+                      <td className="p-3 font-mono">
+                        <div className="font-semibold text-blue-600 dark:text-blue-400 text-xs">
+                          {q.job_card_no}
+                        </div>
                         <div className="text-[10px] text-slate-400 font-sans">{q.job_card_date}</div>
                       </td>
-                      <td className="p-3">
-                        <div className="font-medium text-slate-900 dark:text-white">{q.customer_name}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">
-                          {q.customer_phone_masked || q.customer_phone_raw}
-                        </div>
+
+                      {/* 4. Service Advisor */}
+                      <td className="p-3 text-slate-800 dark:text-slate-200 font-medium">
+                        {q.service_advisor || 'Unassigned'}
                       </td>
-                      <td className="p-3">
-                        <div className="font-semibold text-slate-800 dark:text-slate-200">
-                          {q.vehicle_model || 'Ather 450X'}
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-400">{q.vehicle_reg_no}</div>
-                      </td>
+
+                      {/* 5. Workshop Branch */}
                       <td className="p-3 text-slate-700 dark:text-slate-300">
                         {q.branch_name}
                       </td>

@@ -614,13 +614,13 @@ export default function PsfDashboardPage() {
                       />
                     </th>
                   )}
-                  <th className="py-2.5 px-3">Job Card No</th>
-                  <th className="py-2.5 px-3">Job Card Date</th>
                   <th className="py-2.5 px-3">Customer Name</th>
+                  <th className="py-2.5 px-3">Reg No</th>
+                  <th className="py-2.5 px-3">Job Card No</th>
+                  <th className="py-2.5 px-3">Service Advisor</th>
                   <th className="py-2.5 px-3">Branch</th>
                   <th className="py-2.5 px-3">Brand Logo</th>
                   <th className="py-2.5 px-3">Vin No</th>
-                  <th className="py-2.5 px-3">Reg No</th>
                   <th className="py-2.5 px-3">Model</th>
                   <th className="py-2.5 px-3">Service Type</th>
                   <th className="py-2.5 px-3">Call Status</th>
@@ -630,7 +630,6 @@ export default function PsfDashboardPage() {
                   <th className="py-2.5 px-3">Followup Timestamp</th>
                   <th className="py-2.5 px-3 text-center">Total Attempted</th>
                   <th className="py-2.5 px-3 text-center">Total Contacted</th>
-                  <th className="py-2.5 px-3">Service Advisor</th>
                   <th className="py-2.5 px-3">Technician</th>
                   <th className="py-2.5 px-3 text-center sticky right-0 bg-slate-100 dark:bg-slate-800">Action</th>
                 </tr>
@@ -653,20 +652,12 @@ export default function PsfDashboardPage() {
                       </td>
                     )}
 
-                    {/* 1. Job Card No */}
-                    <td className="py-2.5 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
-                      {q.job_card_no}
-                    </td>
-
-                    {/* 2. Job Card Date */}
-                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400">
-                      {formatDisplayDate(q.job_card_date)}
-                    </td>
-
-                    {/* 3. Customer Name & Direct Call/WhatsApp Links */}
+                    {/* 1. Customer Name */}
                     <td className="py-2.5 px-3 font-medium text-slate-900 dark:text-white">
                       <div className="flex items-center gap-1.5">
-                        <span className="truncate max-w-[140px] font-semibold">{q.customer_name}</span>
+                        <span className="font-bold text-slate-900 dark:text-white text-xs">
+                          {q.customer_name || 'Customer'}
+                        </span>
                         {q.customer_phone_raw && (
                           <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
                             <a
@@ -688,14 +679,34 @@ export default function PsfDashboardPage() {
                           </div>
                         )}
                       </div>
+                      <div className="text-[11px] text-slate-500 font-mono">
+                        {q.customer_phone_masked}
+                      </div>
                     </td>
 
-                    {/* 4. Branch */}
+                    {/* 2. Reg No of Vehicle */}
+                    <td className="py-2.5 px-3 font-mono font-semibold text-slate-900 dark:text-white">
+                      <div>{q.vehicle_reg_no || 'N/A'}</div>
+                      <div className="text-[10px] text-slate-400 font-sans font-normal">{q.vehicle_model}</div>
+                    </td>
+
+                    {/* 3. Job Card No & Date */}
+                    <td className="py-2.5 px-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                      <div>{q.job_card_no}</div>
+                      <div className="text-[10px] text-slate-400 font-sans font-normal">{formatDisplayDate(q.job_card_date)}</div>
+                    </td>
+
+                    {/* 4. Service Advisor */}
+                    <td className="py-2.5 px-3 font-medium text-slate-800 dark:text-slate-200">
+                      {q.service_advisor || 'Unassigned'}
+                    </td>
+
+                    {/* 5. Branch */}
                     <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
                       {q.branch_name}
                     </td>
 
-                    {/* 5. Brand Logo / Badge */}
+                    {/* 6. Brand Logo / Badge */}
                     <td className="py-2.5 px-3">
                       <span
                         className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-xs"
@@ -705,14 +716,9 @@ export default function PsfDashboardPage() {
                       </span>
                     </td>
 
-                    {/* 6. Vin No */}
+                    {/* 7. Vin No */}
                     <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">
                       {q.vin_no || '—'}
-                    </td>
-
-                    {/* 7. Reg No */}
-                    <td className="py-2.5 px-3 font-mono font-semibold text-slate-800 dark:text-slate-200">
-                      {q.vehicle_reg_no}
                     </td>
 
                     {/* 8. Model */}
@@ -799,12 +805,7 @@ export default function PsfDashboardPage() {
                       {q.contacted_count ?? 0}
                     </td>
 
-                    {/* 17. Service Advisor */}
-                    <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                      {q.service_advisor || '—'}
-                    </td>
-
-                    {/* 18. Technician */}
+                    {/* 17. Technician */}
                     <td className="py-2.5 px-3 text-slate-700 dark:text-slate-300">
                       {q.technician_name || '—'}
                     </td>
