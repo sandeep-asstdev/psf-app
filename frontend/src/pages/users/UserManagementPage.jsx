@@ -40,6 +40,7 @@ export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userError, setUserError] = useState(null);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,6 +61,7 @@ export default function UserManagementPage() {
 
   const fetchData = async () => {
     setLoading(true);
+    setUserError(null);
     try {
       const [usersRes, rolesRes] = await Promise.all([
         api.get(`/users?search=${encodeURIComponent(search)}`),
@@ -71,6 +73,7 @@ export default function UserManagementPage() {
         setForm((prev) => ({ ...prev, role_id: rolesRes.data[0].id }));
       }
     } catch (err) {
+      setUserError(err.response?.data?.detail || 'Failed to load user directory');
       toast.error('Failed to load user directory');
     } finally {
       setLoading(false);
@@ -211,13 +214,28 @@ export default function UserManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {loading ? (
+              {userError ? (
                 <tr>
-                  <td colSpan="7" className="py-12 text-center text-foreground-muted">
-                    <RefreshCw className="mx-auto h-6 w-6 animate-spin text-accent mb-2" />
-                    <span>Loading users...</span>
+                  <td colSpan="7" className="py-12 text-center">
+                    <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold mb-2">{userError}</p>
+                    <button
+                      type="button"
+                      onClick={fetchData}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent/90 transition"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span>Retry</span>
+                    </button>
                   </td>
                 </tr>
+              ) : loading ? (
+                [1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan="7" className="py-3 px-4">
+                      <div className="h-8 rounded bg-background-base w-full" />
+                    </td>
+                  </tr>
+                ))
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="py-12 text-center text-foreground-muted">

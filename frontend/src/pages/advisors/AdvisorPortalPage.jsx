@@ -42,6 +42,7 @@ import api from '../../services/api';
 
 export default function AdvisorPortalPage() {
   const [loading, setLoading] = useState(true);
+  const [tasksError, setTasksError] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [statusFilter, setStatusFilter] = useState('PENDING');
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,12 +65,14 @@ export default function AdvisorPortalPage() {
   const fetchAdvisorTasks = async () => {
     try {
       setLoading(true);
+      setTasksError(null);
       const params = {};
       if (statusFilter !== 'ALL') params.status = statusFilter;
 
       const res = await api.get('/complaints/advisors/tasks', { params });
       setTasks(res.data || []);
     } catch (err) {
+      setTasksError(err.response?.data?.detail || 'Failed to load Service Advisor tasks');
       toast.error('Failed to load Service Advisor tasks');
       console.error(err);
     } finally {
@@ -253,12 +256,32 @@ export default function AdvisorPortalPage() {
 
       {/* Task List Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center space-y-3">
-            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin" />
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-              Loading Advisor Tasks...
-            </p>
+        {tasksError ? (
+          <div className="py-16 text-center space-y-3">
+            <div className="inline-flex p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400 font-semibold">{tasksError}</p>
+            <button
+              type="button"
+              onClick={fetchAdvisorTasks}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 shadow-sm transition"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="p-4 space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center px-4 gap-4">
+                <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-40 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded ml-auto" />
+              </div>
+            ))}
           </div>
         ) : filteredTasks.length === 0 ? (
           <div className="py-20 flex flex-col items-center justify-center space-y-3 text-center px-4">

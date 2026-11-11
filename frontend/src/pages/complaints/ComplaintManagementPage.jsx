@@ -43,6 +43,7 @@ import api from '../../services/api';
 
 export default function ComplaintManagementPage() {
   const [loading, setLoading] = useState(true);
+  const [complaintsError, setComplaintsError] = useState(null);
   const [complaints, setComplaints] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -99,6 +100,7 @@ export default function ComplaintManagementPage() {
   const fetchComplaints = async () => {
     try {
       setLoading(true);
+      setComplaintsError(null);
       const params = {
         limit: 50,
       };
@@ -112,6 +114,7 @@ export default function ComplaintManagementPage() {
       setComplaints(res.data.items || []);
       setTotalCount(res.data.total || 0);
     } catch (err) {
+      setComplaintsError(err.response?.data?.detail || 'Failed to load complaints');
       toast.error('Failed to load complaints');
     } finally {
       setLoading(false);
@@ -353,14 +356,54 @@ export default function ComplaintManagementPage() {
           </h2>
         </div>
 
-        {loading ? (
-          <div className="py-20 text-center text-xs text-slate-500">
-            <RefreshCw className="h-5 w-5 animate-spin inline mr-2 text-red-600" />
-            Loading complaint tickets...
+        {complaintsError ? (
+          <div className="py-16 text-center space-y-3">
+            <div className="inline-flex p-3 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <p className="text-xs text-red-600 dark:text-red-400 font-semibold">{complaintsError}</p>
+            <button
+              type="button"
+              onClick={fetchComplaints}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 shadow-sm transition"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="p-4 space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center px-4 gap-4">
+                <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded" />
+                <div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded ml-auto" />
+              </div>
+            ))}
           </div>
         ) : complaints.length === 0 ? (
-          <div className="py-20 text-center text-xs text-slate-400">
-            No complaints found matching the active filters.
+          <div className="py-16 text-center space-y-3">
+            <div className="inline-flex p-3 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+              <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+            </div>
+            <p className="text-xs text-slate-500 font-medium">No complaints found matching the active filters.</p>
+            {(statusFilter !== 'ALL' || severityFilter !== 'ALL' || branchFilter !== 'ALL' || slaBreachedFilter || searchTerm) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('ALL');
+                  setSeverityFilter('ALL');
+                  setBranchFilter('ALL');
+                  setSlaBreachedFilter(false);
+                  setSearchTerm('');
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 transition"
+              >
+                <X className="h-3.5 w-3.5" />
+                <span>Reset Filters</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
