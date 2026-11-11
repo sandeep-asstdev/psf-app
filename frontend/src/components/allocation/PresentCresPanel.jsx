@@ -141,10 +141,10 @@ export default function PresentCresPanel({ onAttendanceChanged }) {
           <div className="flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              CRE Attendance & Live Presence
+              Active Callers & Allocation Pool
             </h2>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold border border-blue-200 dark:border-blue-800">
-              {data.total_present} Present / {data.total_absent} Absent
+              {data.total_present} Available / {data.total_absent} Away
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

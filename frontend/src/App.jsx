@@ -23,6 +23,7 @@ import { useAuthStore } from './store/authStore';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import LoginPage from './pages/auth/LoginPage';
+import UserActivityPage from './pages/auth/UserActivityPage';
 import AttendanceLogsPage from './pages/auth/AttendanceLogsPage';
 import UserManagementPage from './pages/users/UserManagementPage';
 import SettingsPage from './pages/settings/SettingsPage';
@@ -64,7 +65,8 @@ export default function App() {
             <AppLayout>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/attendance" element={<AttendanceLogsPage />} />
+                <Route path="/activity" element={<UserActivityPage />} />
+                <Route path="/attendance" element={<UserActivityPage />} />
                 <Route
                   path="/users"
                   element={

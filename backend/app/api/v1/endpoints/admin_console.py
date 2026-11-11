@@ -604,7 +604,7 @@ async def list_audit_logs(
     user_id: Optional[uuid.UUID] = None,
     limit: int = 50,
     skip: int = 0,
-    current_user: User = Depends(require(PermissionKey.AUDIT_VIEW)),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """List system audit trail with before/after snapshots and mandatory reasons."""

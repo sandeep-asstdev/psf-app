@@ -44,7 +44,7 @@ const NAV_ITEMS = [
   { to: '/happiness', label: 'Happiness Calling', icon: HeartHandshake, badge: '6', permission: 'call.view' },
   { to: '/complaints', label: 'Complaints', icon: AlertOctagon, badge: '3', permission: 'complaint.view' },
   { to: '/advisor', label: 'Advisor Followup', icon: Wrench, permission: 'advisor.action' },
-  { to: '/attendance', label: 'Shift Attendance', icon: Clock },
+  { to: '/activity', label: 'App Usage & Audit', icon: ShieldCheck },
   { to: '/reports', label: 'Reports & Analytics', icon: BarChart3, permission: 'report.view' },
   { to: '/import', label: 'Data Import', icon: UploadCloud, permission: 'jobcard.import' },
   { to: '/users', label: 'User Management', icon: Users, permissions: ['user.create', 'user.edit'] },
@@ -141,23 +141,18 @@ export default function Sidebar({ isOpen, onClose }) {
           })}
         </nav>
 
-        {/* Bottom Section: Attendance Log / Logout */}
+        {/* Bottom Section: User Session / Sign Out */}
         <div className="border-t border-border p-3 space-y-2">
-          <div className="rounded-lg bg-background-base p-2 text-xs">
-            <div className="flex items-center justify-between text-foreground-subtle mb-0.5">
-              <span>Shift Active:</span>
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            </div>
-            <div className="font-semibold text-foreground">
-              {elapsedTime ? `${elapsedTime} active` : 'Active'}
-            </div>
+          <div className="flex items-center justify-between text-xs px-2 py-1 text-foreground-muted">
+            <span className="truncate max-w-[150px] font-medium">{user?.full_name || user?.email}</span>
+            <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">{user?.role_name}</span>
           </div>
           <button
             onClick={logout}
             className="flex w-full items-center space-x-2 rounded-lg px-3 py-2 text-xs font-semibold text-status-danger hover:bg-status-danger/10 transition-colors"
           >
             <LogOut className="h-4 w-4" />
-            <span>End Shift & Log Out</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>

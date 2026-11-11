@@ -280,7 +280,7 @@ export default function PsfDashboardPage() {
               }`}
             >
               <Users className="h-4 w-4" />
-              <span>Shift Attendance & CRE Pool</span>
+              <span>Active Caller Pool & Allocation</span>
             </button>
           )}
 

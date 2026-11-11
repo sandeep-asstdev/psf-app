@@ -101,3 +101,11 @@ describe('TNPS Dashboard Component', () => {
     expect(typeof module.default).toBe('function');
   });
 });
+
+describe('User Activity & Audit Logs Page', () => {
+  it('imports UserActivityPage successfully without errors', async () => {
+    const module = await import('../pages/auth/UserActivityPage');
+    expect(module.default).toBeDefined();
+    expect(typeof module.default).toBe('function');
+  });
+});

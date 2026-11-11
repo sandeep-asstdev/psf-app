@@ -78,14 +78,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Shift Attendance Notice */}
-        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300 shadow-subtle flex items-start space-x-2.5">
-          <Clock className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div>
-            <span className="font-semibold">Attendance Log Active:</span> Signing in automatically starts your CRE/Advisor caller shift and tracks session duration.
-          </div>
-        </div>
-
         {/* Login Card */}
         <div className="rounded-2xl border border-border bg-background-surface p-6 sm:p-8 shadow-card">
           <form onSubmit={handleSubmit} className="space-y-4">
